@@ -5,3 +5,7 @@ authors = ["Simon PEROLS <simon.perols@oweb.pm>"]
 edition = "2018"
 
 [dependencies]
+actix = "0.8.3"
+actix-web = "1.0.8"
+validator = "0.9.0"
+diesel = { version = "1.4.3", features = ["postgres"] }
