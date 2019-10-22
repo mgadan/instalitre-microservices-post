@@ -6,4 +6,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::resource("/")
             .route(web::get().to(handler::get_posts))
     );
+
+    cfg.service(
+        web::resource("/posts")
+            .route(web::get().to_async(handler::index))
+    );
 }

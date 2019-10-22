@@ -2,9 +2,9 @@
 extern crate validator_derive;
 #[macro_use]
 extern crate diesel;
-
+pub mod schema;
 use actix_web::{App, HttpServer};
-mod post;
+pub mod post;
 
 fn main() {
     HttpServer::new(|| {
