@@ -1,3 +1,8 @@
+#[macro_use]
+extern crate validator_derive;
+#[macro_use]
+extern crate diesel;
+
 use actix_web::{App, HttpServer};
 mod post;
 
