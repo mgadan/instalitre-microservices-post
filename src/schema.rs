@@ -3,6 +3,6 @@ table! {
         uuid -> Uuid,
         author -> Uuid,
         description -> Text,
-        photo -> Text,
+        photo -> Uuid,
     }
 }
