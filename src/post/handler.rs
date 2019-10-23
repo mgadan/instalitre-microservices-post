@@ -1,17 +1,23 @@
 extern crate diesel;
 
 use actix_web::{HttpRequest, Responder, HttpResponse };
-use crate::post::model::PostList;
+use crate::post::model::*;
 use post::establish_connection;
+use actix_web::web;
 
-pub fn get_posts(req: HttpRequest) -> impl Responder {
-    let _connection = establish_connection();
-
-    let name = req.match_info().get("name").unwrap_or("World");
-    format!("Hello {}!", &name);
-}
-
-pub fn index(_req: HttpRequest) -> HttpResponse {
+pub fn get_posts(_req: HttpRequest) -> HttpResponse {
     HttpResponse::Ok().json(PostList::list())
 }
 
+pub fn create_posts(new_post: web::Json<NewPost>) -> Result<HttpResponse, HttpResponse> {
+
+    // we call the method create from NewProduct and map an ok status response when
+    // everything works, but map the error from diesel error 
+    // to an internal server error when something fails.
+    new_post
+        .create()
+        .map(|post| HttpResponse::Ok().json(post))
+        .map_err(|e| {
+            HttpResponse::InternalServerError().json(e.to_string())
+        })
+}
