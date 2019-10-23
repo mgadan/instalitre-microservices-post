@@ -4,7 +4,6 @@ extern crate validator_derive;
 extern crate diesel;
 
 pub mod schema;
-pub mod errors;
 pub mod post;
 pub mod lib;
 
