@@ -7,6 +7,8 @@ use actix_web::{App, HttpServer};
 mod post;
 
 fn main() {
+    let _guard = sentry::init(None);
+
     HttpServer::new(|| {
         App::new()
             .configure(post::router::config)
