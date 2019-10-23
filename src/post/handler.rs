@@ -1,8 +1,6 @@
 extern crate diesel;
-
-use actix_web::{HttpRequest, Responder, HttpResponse };
+use actix_web::{HttpRequest, HttpResponse };
 use crate::post::model::*;
-use post::establish_connection;
 use actix_web::web;
 
 pub fn get_posts(_req: HttpRequest) -> HttpResponse {

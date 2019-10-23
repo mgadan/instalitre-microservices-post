@@ -12,8 +12,8 @@ use crate::schema::posts;
     pub author: Uuid,
     #[validate(length(min = 1, max = 1000))]
     pub description: String,
-    //#[validate(contains = "data:image/jpg;base64")]
-    pub photo: Uuid
+    #[validate(contains = "data:image/jpg;base64")]
+    pub photo: String
 }
 
 #[derive(Serialize, Deserialize)] 
@@ -40,13 +40,15 @@ impl PostList {
     }
 }
 
-#[derive(Insertable, Deserialize, Debug, Clone)]
+#[derive(Insertable, Deserialize, Debug, Clone, Validate)]
 #[table_name="posts"]
 pub struct NewPost {
     pub uuid: Option<Uuid>,
     pub author: Uuid,
+    #[validate(length(min = 1, max = 1000))]
     pub description: String,
-    pub photo: Uuid
+    #[validate(contains = "data:image/jpg;base64")]
+    pub photo: String
 }
 
 impl NewPost {
@@ -60,7 +62,7 @@ impl NewPost {
         use post::establish_connection;
 
         let new_post = NewPost {
-            uuid: Some( Uuid::new_v4()),
+            uuid: Some(Uuid::new_v4()),
             ..self.clone()
         };
 
