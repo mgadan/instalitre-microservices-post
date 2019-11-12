@@ -65,7 +65,6 @@ impl PostList {
                 .limit(10)
                 .load::<Post>(connection)
                 .expect("Error loading post");
-
         // We return a value by leaving it without a comma
         PostList(result)
     }
