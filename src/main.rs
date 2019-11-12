@@ -6,16 +6,22 @@ extern crate diesel;
 pub mod schema;
 pub mod post;
 pub mod lib;
+pub mod errors;
 
 use lib::establish_connection;
 use actix_web::{App, HttpServer};
+use actix_web::middleware::{cors, Logger};
 
 fn main() {
+    std::env::set_var("RUST_LOG", "actix_web=debug");
+    env_logger::init();
+    
     HttpServer::new(|| {
         App::new()
             .data(establish_connection())
             .configure(post::router::config)
     })  
+        .wrap(Logger::default())
         .bind("0.0.0.0:8000")
         .expect("Can not bind to port 8000")
         .run()

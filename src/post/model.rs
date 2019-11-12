@@ -4,6 +4,7 @@ use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 use crate::schema::posts;
 use diesel::PgConnection;
+use crate::errors::PostError;
 
 #[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable)]
 #[table_name="posts"]
@@ -22,27 +23,24 @@ pub struct UpdatePost {
 }
 
 impl Post {
-    pub fn find(uuid: &Uuid, connection: &PgConnection) -> Result<Post, diesel::result::Error> {
+    pub fn find(uuid: &Uuid, connection: &PgConnection) -> Result<Post, PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
-
         posts::table.find(uuid).first(connection)
     }
 
-    pub fn destroy(uuid: &Uuid, connection: &PgConnection) -> Result<(), diesel::result::Error> {
+    pub fn destroy(uuid: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl;
-
         diesel::delete(dsl::posts.find(uuid)).execute(connection)?;
         Ok(())
     }
 
-     pub fn update(uuid: &Uuid, new_post: &UpdatePost, connection: &PgConnection) -> Result<(), diesel::result::Error> {
+     pub fn update(uuid: &Uuid, new_post: &UpdatePost, connection: &PgConnection) -> Result<(), PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl;
-
         diesel::update(dsl::posts.find(uuid))
             .set(new_post)
             .execute(connection)?;
@@ -59,7 +57,6 @@ impl PostList {
         use diesel::RunQueryDsl;
         use diesel::QueryDsl;
         use crate::schema::posts::dsl::*;
-        
         let result = 
             posts
                 .limit(10)
@@ -80,26 +77,20 @@ pub struct NewPost {
 }
 
 impl NewPost {
-
-    pub fn create(&self, connection: &PgConnection) -> Result<Post, diesel::result::Error> {
+    pub fn create(&self, connection: &PgConnection) -> Result<Post, PostError> {
         use diesel::RunQueryDsl;
-
         println!("{:?}", self);
-
         // match self.validate() {
         //      Ok(_) => {},
-        //      Err(e) => Err(diesel::result::Error),
+        //      Err(e) => Err(PostError),
         // };
-
         let post = self.clone();
-
         let new_post = Post {
             uuid: Uuid::new_v4(),
             photo: Uuid::new_v4(),
             description: post.description,
             author: post.author,
         };
-
         diesel::insert_into(posts::table)
             .values(new_post)
             .get_result(connection)
