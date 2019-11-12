@@ -1,3 +1,4 @@
+extern crate openssl;
 #[macro_use]
 extern crate validator_derive;
 #[macro_use]
