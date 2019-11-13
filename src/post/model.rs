@@ -139,13 +139,3 @@ impl NewPost {
     }
 }
 
-impl PartialEq<Post> for Post {
-    fn eq(&self, other: &Post) -> bool {
-        let new_post = self.clone();
-        let post = other.clone();
-        new_post.description == post.description &&
-        new_post.id == post.id &&
-        new_post.author == post.author &&
-        new_post.image == post.image
-    }
-}
