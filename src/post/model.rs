@@ -38,7 +38,7 @@ pub struct UpdatePost {
 }
 
 impl Post {
-    pub fn find(uuid: &Uuid, connection: &PgConnection) -> Result<Post, PostError> {
+    pub fn get(uuid: &Uuid, connection: &PgConnection) -> Result<Post, PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use diesel::ExpressionMethods;
@@ -46,7 +46,7 @@ impl Post {
         use crate::schema;
 
         let post: Post =
-            posts::table
+            schema::posts::table
                 .select(POST_COLUMNS)
                 .find(uuid)
                 .first(connection)?;
@@ -54,7 +54,7 @@ impl Post {
         // posts::table.find(uuid).first(connection)
     }
 
-    pub fn destroy(uuid: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
+    pub fn delete(uuid: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl;
@@ -65,7 +65,7 @@ impl Post {
         Ok(())
     }
 
-     pub fn update(uuid: &Uuid, new_post: &UpdatePost, connection: &PgConnection) -> Result<(), PostError> {
+     pub fn put(uuid: &Uuid, new_post: &UpdatePost, connection: &PgConnection) -> Result<(), PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl;
@@ -80,13 +80,14 @@ impl Post {
 pub struct PostList(pub Vec<Post>);
 
 impl PostList {
-    pub fn list(connection: &PgConnection) -> Result<Self, PostError> {
+    pub fn getAll(connection: &PgConnection) -> Result<Self, PostError> {
         // These four statements can be placed in the top, or here, your call.
         use diesel::RunQueryDsl;
         use diesel::QueryDsl;
         use diesel::ExpressionMethods;
         use crate::schema::posts::dsl::*;
         use diesel::pg::Pg;
+        use crate::schema;
 
         let mut query = schema::posts::table.into_boxed::<Pg>();
 
@@ -116,7 +117,7 @@ pub struct NewPost {
 }
 
 impl NewPost {
-    pub fn create(&self, connection: &PgConnection) -> Result<Post, PostError> {
+    pub fn post(&self, connection: &PgConnection) -> Result<Post, PostError> {
         use diesel::RunQueryDsl;
         println!("{:?}", self);
         // match self.validate() {
