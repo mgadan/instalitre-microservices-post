@@ -5,6 +5,7 @@ use uuid::Uuid;
 use crate::schema::posts;
 use diesel::PgConnection;
 use crate::errors::PostError;
+use prometheus::{Opts, Registry, Counter, TextEncoder, Encoder};
 
 #[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable)]
 #[table_name="posts"]

@@ -17,4 +17,4 @@ uuid = { version = "0.7", features = ["serde", "v4"] }
 bcrypt = "0.6.1"
 actix-http-test = "0.2.5"
 bytes = "0.4.12"
-mocktopus = "0.7.3"
+prometheus = "0.7"
