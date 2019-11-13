@@ -2,11 +2,13 @@ use std::fmt;
 use bcrypt::BcryptError;
 use diesel::result;
 
+#[derive(Debug)]
 pub enum PostError {
     HashError(BcryptError),
     DBError(result::Error),
     PasswordNotMatch(String),
-    WrongPassword(String)
+    WrongPassword(String),
+    PGConnectionError
 }
 
 impl From<BcryptError> for PostError {
@@ -28,6 +30,7 @@ impl fmt::Display for PostError {
             PostError::DBError(error) => write!(f, "{}", error),
             PostError::PasswordNotMatch(error) => write!(f, "{}", error),
             PostError::WrongPassword(error) => write!(f, "{}", error)
+            PostError::PGConnectionError => write!(f, "error obtaining a db connection")
         }
     }
 }
