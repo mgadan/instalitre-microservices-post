@@ -10,11 +10,10 @@ pub mod errors;
 
 use lib::establish_connection;
 use actix_web::{App, HttpServer};
-use actix_web::middleware::{cors, Logger};
+use actix_web::middleware::Logger;
 
 fn main() {
     std::env::set_var("RUST_LOG", "actix_web=debug");
-    env_logger::init();
     
     HttpServer::new(|| {
         App::new()

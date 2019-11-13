@@ -29,7 +29,7 @@ impl fmt::Display for PostError {
             PostError::HashError(error) => write!(f, "{}", error),
             PostError::DBError(error) => write!(f, "{}", error),
             PostError::PasswordNotMatch(error) => write!(f, "{}", error),
-            PostError::WrongPassword(error) => write!(f, "{}", error)
+            PostError::WrongPassword(error) => write!(f, "{}", error),
             PostError::PGConnectionError => write!(f, "error obtaining a db connection")
         }
     }

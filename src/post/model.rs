@@ -5,7 +5,6 @@ use uuid::Uuid;
 use crate::schema::posts;
 use diesel::PgConnection;
 use crate::errors::PostError;
-use prometheus::{Opts, Registry, Counter, TextEncoder, Encoder};
 
 #[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable, PartialEq)]
 #[table_name="posts"]
@@ -18,14 +17,14 @@ use prometheus::{Opts, Registry, Counter, TextEncoder, Encoder};
 }
 
 type PostColumns = (
-    posts::id,
+    posts::uuid,
     posts::description,
     posts::author,
     posts::photo
 );
 
 const POST_COLUMNS: PostColumns = (
-    posts::id,
+    posts::uuid,
     posts::description,
     posts::author,
     posts::photo
@@ -43,7 +42,8 @@ impl Post {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use diesel::ExpressionMethods;
-        use crate::schema::posts::dsl;
+        use crate::schema::posts::dsl::*;
+        use crate::schema;
 
         let post: Post =
         schema::posts::table
@@ -62,7 +62,7 @@ impl Post {
         use crate::schema::posts::dsl;
         use diesel::ExpressionMethods;
 
-        diesel::delete(dsl::posts.find(id))
+        diesel::delete(dsl::posts.find(uuid))
             .execute(connection)?;
         Ok(())
     }
@@ -82,7 +82,7 @@ impl Post {
 pub struct PostList(pub Vec<Post>);
 
 impl PostList {
-    pub fn list(connection: &PgConnection) -> Result<Self, MyStoreError> {
+    pub fn list(connection: &PgConnection) -> Result<Self, PostError> {
         // These four statements can be placed in the top, or here, your call.
         use diesel::RunQueryDsl;
         use diesel::QueryDsl;
@@ -99,7 +99,7 @@ impl PostList {
         // We return a value by leaving it without a comma
         Ok(
             PostList(
-                query_products
+                query_posts
                     .into_iter()
                     .zip(query_posts)
                     .collect::<Vec<_>>()
