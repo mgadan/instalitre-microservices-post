@@ -46,13 +46,11 @@ impl Post {
         use crate::schema;
 
         let post: Post =
-        schema::posts::table
-            .select(POST_COLUMNS)
-            .find(uuid)
-            .first(connection)?;
-        
+            posts::table
+                .select(POST_COLUMNS)
+                .find(uuid)
+                .first(connection)?;
         Ok((post))
-
         // posts::table.find(uuid).first(connection)
     }
 

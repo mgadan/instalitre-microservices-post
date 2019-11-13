@@ -20,7 +20,6 @@ fn main() {
             .data(establish_connection())
             .configure(post::router::config)
     })  
-        .wrap(Logger::default())
         .bind("0.0.0.0:8000")
         .expect("Can not bind to port 8000")
         .run()
