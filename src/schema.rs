@@ -1,8 +1,8 @@
 table! {
-    posts (uuid) {
-        uuid -> Uuid,
-        author -> Uuid,
+    posts (id) {
+        id -> Text,
+        author -> Text,
         description -> Text,
-        photo -> Uuid,
+        photo -> Text,
     }
 }
