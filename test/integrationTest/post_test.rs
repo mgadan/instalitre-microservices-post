@@ -139,7 +139,7 @@ mod integrationTest {
                             changes_to_post: &UpdatePost) {
 
         let request = srv
-                        .request(http::Method::PATCH, srv.url(&format!("/{}", id)))
+                        .request(http::Method::PUT, srv.url(&format!("/{}", id)))
                         .header(header::CONTENT_TYPE, "application/json")
                         .timeout(std_duration::from_secs(600));
 

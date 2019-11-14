@@ -13,9 +13,9 @@ fn pg_pool_handler(pool: web::Data<PgPool>) -> Result<PgPooledConnection, HttpRe
     })
 }
 
- pub fn getAll(_req: HttpRequest, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
+ pub fn get_all(_req: HttpRequest, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
      let pg_pool = pg_pool_handler(pool)?;
-     Ok(HttpResponse::Ok().json(PostList::getAll(&pg_pool)))
+     Ok(HttpResponse::Ok().json(PostList::get_all(&pg_pool)))
  }
 
 pub fn post(new_post: web::Json<NewPost>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {

@@ -9,59 +9,40 @@ use crate::errors::PostError;
 #[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable, PartialEq)]
 #[table_name="posts"]
     pub struct Post {
-    pub id: String,
-    pub author: String,
-    #[validate(length(min = 1, max = 1000))]
+    pub id: Uuid,
+    pub author: Uuid,
     pub description: String,
     pub photo: String                                                                                                                                                         
 }
 
-
-type PostColumns = (
-    posts::id,
-    posts::description,
-    posts::author,
-    posts::photo
-);
-
-const POST_COLUMNS: PostColumns = (
-    posts::id,
-    posts::description,
-    posts::author,
-    posts::photo
-);
-
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
-#[derive(Insertable, Deserialize, AsChangeset)]                                                                                                                                                                                                     
+#[derive(Insertable, Deserialize, AsChangeset, Validate)]                                                                                                                                                                                                     
 #[table_name="posts"]
 pub struct UpdatePost {
+    #[validate(length(min = 1, max = 1000))]
     pub description: Option<String>,
 }
 
 impl Post {
-    pub fn get(id: &Uuid, connection: &PgConnection) -> Result<Post, PostError> {
+    pub fn get(_id: &Uuid, connection: &PgConnection) -> Result<Post, PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl::*;
         use crate::schema;
 
-        let post: Post =
-            schema::posts::table
-                .select(POST_COLUMNS)
-                .find(id)
-                .first(connection)?;
+        let post = schema::posts::table
+                    .find(id)
+                    .first(connection)?;
 
-        Ok((post))
-        // posts::table.find(uuid).first(connection)
+        Ok(post)
     }
 
     pub fn delete(id: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl;
-        use diesel::ExpressionMethods;
 
-        diesel::delete(dsl::posts.find(format!("{}", id)))
+        diesel::delete(dsl::posts.find(id))
             .execute(connection)?;
         Ok(())
     }
@@ -70,7 +51,15 @@ impl Post {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl;
-        diesel::update(dsl::posts.find(format!("{}", id)))
+
+        match new_post.validate() {
+            Ok(_) => {},
+            Err(e) => {
+               return Err(PostError::ValidatorInvalid(e));
+           }
+       };
+
+        diesel::update(dsl::posts.find(id))
             .set(new_post)
             .execute(connection)?;
         Ok(())
@@ -81,18 +70,13 @@ impl Post {
 pub struct PostList(pub Vec<Post>);
 
 impl PostList {
-    pub fn getAll(connection: &PgConnection) -> Self{
+    pub fn get_all(connection: &PgConnection) -> Self{
         // These four statements can be placed in the top, or here, your call.
         use diesel::RunQueryDsl;
-        use diesel::QueryDsl;
-        use diesel::pg::Pg;
-        use crate::schema;
         use crate::schema::posts::dsl::*;
-
 
         let result = 
             posts
-                .limit(10)
                 .load::<Post>(connection)
                 .expect("Error loading post");
 
@@ -103,7 +87,7 @@ impl PostList {
 
 #[derive(Deserialize, Debug, Clone, Validate)]
 pub struct NewPost {
-    pub author:  String,
+    pub author:  Uuid,
     #[validate(length(min = 1, max = 1000))]
     pub description: String,
     #[validate(contains = "data:image/jpg;base64")]
@@ -114,21 +98,27 @@ impl NewPost {
     pub fn post(&self, connection: &PgConnection) -> Result<Post, PostError> {
         use diesel::RunQueryDsl;
         println!("{:?}", self);
-        // match self.validate() {
-        //      Ok(_) => {},
-        //      Err(e) => Err(PostError),
-        // };
+
+        match self.validate() {
+             Ok(_) => {},
+             Err(e) => {
+                return Err(PostError::ValidatorInvalid(e));
+            }
+        };
+
         let post = self.clone();
         let new_post = Post {
-            id: format!("{}", Uuid::new_v4()),
+            id: Uuid::new_v4(),
             photo: format!("{}", Uuid::new_v4()),
             description: post.description,
             author: post.author,
         };
+
         let register = diesel::insert_into(posts::table)
-            .values(new_post)
-            .get_result::<Post>(connection)?;
-        Ok((register))
+        .values(new_post)
+        .get_result::<Post>(connection)?;
+
+        Ok(register)
     }
 }
 
