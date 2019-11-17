@@ -5,6 +5,13 @@ use uuid::Uuid;
 use crate::schema::posts;
 use diesel::PgConnection;
 use crate::errors::PostError;
+use actix_multipart::{Field, MultipartError};
+use actix_web::{error, web, Error};
+use futures::future::{err, Either};
+use futures::{Future, Stream};
+
+use std::fs;
+use std::io::Write;
 
 #[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable, PartialEq)]
 #[table_name="posts"]
@@ -14,7 +21,6 @@ use crate::errors::PostError;
     pub description: String,
     pub photo: String                                                                                                                                                         
 }
-
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
 #[derive(Insertable, Deserialize, AsChangeset, Validate)]                                                                                                                                                                                                     
 #[table_name="posts"]
@@ -94,11 +100,13 @@ pub struct NewPost {
     pub photo: String
 }
 
+
+
 impl NewPost {
     pub fn post(&self, connection: &PgConnection) -> Result<Post, PostError> {
         use diesel::RunQueryDsl;
         println!("{:?}", self);
-
+        
         match self.validate() {
              Ok(_) => {},
              Err(e) => {
@@ -113,7 +121,7 @@ impl NewPost {
             description: post.description,
             author: post.author,
         };
-
+        
         let register = diesel::insert_into(posts::table)
         .values(new_post)
         .get_result::<Post>(connection)?;
@@ -122,3 +130,36 @@ impl NewPost {
     }
 }
 
+pub fn save_file( field: Field) -> impl Future<Item = i64, Error = Error> {
+    let file_path_string = format!("upload.png");
+    let file = match fs::File::create(file_path_string) {
+        Ok(file) => file,
+        Err(e) => return Either::A(err(error::ErrorInternalServerError(e))),
+    };
+    Either::B(
+        field
+            .fold((file, 0i64), move |(mut file, mut acc), bytes| {
+                // fs operations are blocking, we have to execute writes
+                // on threadpool
+                web::block(move || {
+                    file.write_all(bytes.as_ref()).map_err(|e| {
+                        println!("file.write_all failed: {:?}", e);
+                        MultipartError::Payload(error::PayloadError::Io(e))
+                    })?;
+                    acc += bytes.len() as i64;
+                    Ok((file, acc))
+                })
+                .map_err(|e: error::BlockingError<MultipartError>| {
+                    match e {
+                        error::BlockingError::Error(e) => e,
+                        error::BlockingError::Canceled => MultipartError::Incomplete,
+                    }
+                })
+            })
+            .map(|(_, acc)| acc)
+            .map_err(|e| {
+                println!("save_file failed, {:?}", e);
+                error::ErrorInternalServerError(e)
+            }),
+    )
+}

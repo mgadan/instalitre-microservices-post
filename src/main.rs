@@ -10,13 +10,15 @@ pub mod lib;
 pub mod errors;
 
 use lib::establish_connection;
-use actix_web::{App, HttpServer};
+use actix_web::{middleware, App, HttpServer};
 
 fn main() {
-    std::env::set_var("RUST_LOG", "actix_web=debug");
+    std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
+    env_logger::init();
     
     HttpServer::new(|| {
         App::new()
+            .wrap(middleware::Logger::default())
             .data(establish_connection())
             .configure(post::router::config)
     })  
