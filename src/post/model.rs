@@ -9,9 +9,10 @@ use actix_multipart::{Field, MultipartError};
 use actix_web::{error, web, Error};
 use futures::future::{err, Either};
 use futures::{Future, Stream};
-
 use std::fs;
 use std::io::Write;
+use std::io::prelude::*;
+use std::fs::File;
 
 #[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable, PartialEq)]
 #[table_name="posts"]
@@ -130,15 +131,16 @@ impl NewPost {
     }
 }
 
-pub fn save_file(id: &Uuid, field: Field) -> impl Future<Item = i64, Error = Error> {
+pub fn save_file(id: &Uuid, field: Field) -> impl Future<Item = u16, Error = Error> {
     let validator_images = format!("{:?}", field.headers().get("content-type"));
     println!("{:?}", field.headers());
     if validator_images.contains("image") != true {
         return Either::A(err(error::ErrorInternalServerError(std::io::Error::new(std::io::ErrorKind::Other, "Votre fichier n'est pas une images"))));
     }
+    //TODO : remplacer la valeur static par la valeur dynamique
+    let file_path_string = (format!("./{}.png", id)).to_owned();
 
-    let file_path_string = format!("./downloadTemp/{}.png", id);
-        let file = match fs::File::create(file_path_string) {
+    let file = match fs::File::create(file_path_string) {
             Ok(file) => file,
             Err(e) => return Either::A(err(error::ErrorInternalServerError(e))),
         };
@@ -160,10 +162,52 @@ pub fn save_file(id: &Uuid, field: Field) -> impl Future<Item = i64, Error = Err
                         }
                     })
                 })
-                .map(|(_, acc)| acc)
+                .map(| _ | 200)
                 .map_err(|e| {
                     println!("save_file failed, {:?}", e);
                     error::ErrorInternalServerError(e)
                 }),
         )
+}
+
+use s3::bucket::Bucket;
+use s3::credentials::Credentials;
+use s3::region::Region;
+
+
+pub fn put_file_s3(path: String) -> impl Future<Item = u16, Error = Error> {
+    let region = Region::Custom {
+        region: format!("fr-par"),
+        endpoint: format!("https://s3.fr-par.scw.cloud")
+    };
+
+    let credentials = Credentials::new(
+        Some(format!("SCWTRK0PCJK8Z9626DGF")), 
+        Some(format!("6b9e1031-1c23-4f49-abdb-be90131752d6")), 
+        None, 
+    None);
+
+    let bucket = Bucket::new(
+        &format!("s3cloud"),
+        region,
+        credentials
+    ).unwrap();
+
+    web::block(move || {  
+        let s_slice: &str = &path[..];  // take a full slice of the string
+        let file= File::open(s_slice).unwrap();
+        let data: Result<Vec<_>, _> = file.bytes().collect();
+        let data = data.expect("Unable to read data");
+        let (_, code) = bucket.put_object(s_slice, &data, "image/png").unwrap();
+        fs::remove_file(s_slice);
+        println!("{:?}", code);
+        Ok(code)
+    })
+    .map(| code | code)
+    .map_err(|e: error::BlockingError<MultipartError>| {
+        match e {
+            error::BlockingError::Error(e) => error::ErrorInternalServerError(e),
+            error::BlockingError::Canceled => error::ErrorInternalServerError(MultipartError::Incomplete),
+        }
+    })
 }

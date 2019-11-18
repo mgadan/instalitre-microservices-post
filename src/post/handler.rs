@@ -7,6 +7,29 @@ use crate::lib::{ PgPool, PgPooledConnection };
 use actix_multipart::Multipart;
 use futures::{Future, Stream};
 
+
+macro_rules! function_handler {
+    ( $handler_name:ident ($($arg:ident:$typ:ty),*) -> $body:expr) => {
+        pub fn $handler_name(user: LoggedUser, pool: web::Data<PgPool>, $($arg:$typ,)*) 
+            -> impl Future<Item = HttpResponse, Error = actix_web::Error>
+        {
+            web::block(move || {
+                let pg_pool = pool
+                    .get()
+                    .map_err(|_| {
+                        crate::errors::MyStoreError::PGConnectionError
+                    })?;
+                $body(user, pg_pool)
+            })
+            .then(|res| match res {
+                Ok(data) => Ok(HttpResponse::Ok().json(data)),
+                Err(error) => Err(actix_web::error::ErrorInternalServerError(error)),
+            })
+        }
+    };
+}
+
+
 fn pg_pool_handler(pool: web::Data<PgPool>) -> Result<PgPooledConnection, HttpResponse> {
     pool
     .get()
@@ -61,12 +84,14 @@ pub fn upload(
     id: web::Path<Uuid>,
     multipart: Multipart,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
+    let test = format!("./{}.png", id);
     multipart
         .map_err(error::ErrorInternalServerError)
         .map(move | field | save_file(&id, field).into_stream())
         .flatten()
         .collect()
-        .map(|sizes| HttpResponse::Ok().json(sizes))
+        .map(move | _ | put_file_s3(test))
+        .map(| _ | HttpResponse::Ok().json(format!("yes")))
         .map_err(|e| {
             println!("failed: {}", e);
             e
