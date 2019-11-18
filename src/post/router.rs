@@ -13,6 +13,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route(web::get().to_async(handler::get))
             .route(web::delete().to_async(handler::delete))
             .route(web::patch().to_async(handler::put))
+    );
+
+    cfg.service(
+        web::resource("/file/{author}")
             .route(web::post().to_async(handler::upload))
     );
 }

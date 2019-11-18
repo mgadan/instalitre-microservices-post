@@ -81,16 +81,17 @@ pub fn put(id: web::Path<Uuid>, new_post: web::Json<UpdatePost>, pool: web::Data
 }
 
 pub fn upload(
-    id: web::Path<Uuid>,
+    author: web::Path<Uuid>,
     multipart: Multipart,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
-    let test = format!("./{}.png", id);
+    let destFile = format!("./{}/{}.png", author, Uuid::new_v4());
+    let srcFile = format!("./{}.png", author);
     multipart
         .map_err(error::ErrorInternalServerError)
-        .map(move | field | save_file(&id, field).into_stream())
+        .map(move | field | save_file(&author, field).into_stream())
         .flatten()
         .collect()
-        .map(move | _ | put_file_s3(test))
+        .map(move | _ | put_file_s3(srcFile, destFile))
         .map(| _ | HttpResponse::Ok().json(format!("yes")))
         .map_err(|e| {
             println!("failed: {}", e);

@@ -173,33 +173,37 @@ pub fn save_file(id: &Uuid, field: Field) -> impl Future<Item = u16, Error = Err
 use s3::bucket::Bucket;
 use s3::credentials::Credentials;
 use s3::region::Region;
+use dotenv::dotenv;
+use std::env;
 
 
-pub fn put_file_s3(path: String) -> impl Future<Item = u16, Error = Error> {
+pub fn put_file_s3(srcFile: String, destFile: String) -> impl Future<Item = u16, Error = Error> {
     let region = Region::Custom {
-        region: format!("fr-par"),
-        endpoint: format!("https://s3.fr-par.scw.cloud")
+        region: env::var("region").expect("region must be set"),
+        endpoint: env::var("endpoint").expect("endpoint must be set")
     };
 
     let credentials = Credentials::new(
-        Some(format!("SCWTRK0PCJK8Z9626DGF")), 
-        Some(format!("6b9e1031-1c23-4f49-abdb-be90131752d6")), 
+        Some(env::var("accesskey").expect("accesskey must be set")), 
+        Some(env::var("secretkey").expect("secretkey must be set")), 
         None, 
     None);
 
     let bucket = Bucket::new(
-        &format!("s3cloud"),
+        &env::var("nameBucket").expect("nameBucket must be set"),
         region,
         credentials
     ).unwrap();
 
     web::block(move || {  
-        let s_slice: &str = &path[..];  // take a full slice of the string
-        let file= File::open(s_slice).unwrap();
+        let srcFile_slice: &str = &srcFile[..];
+        let destFile_slice: &str = &destFile[..];
+
+        let file= File::open(srcFile_slice).unwrap();
         let data: Result<Vec<_>, _> = file.bytes().collect();
         let data = data.expect("Unable to read data");
-        let (_, code) = bucket.put_object(s_slice, &data, "image/png").unwrap();
-        fs::remove_file(s_slice);
+        let (_, code) = bucket.put_object(destFile_slice, &data, "image/png").unwrap();
+        fs::remove_file(destFile_slice);
         println!("{:?}", code);
         Ok(code)
     })
