@@ -130,36 +130,40 @@ impl NewPost {
     }
 }
 
-pub fn save_file( field: Field) -> impl Future<Item = i64, Error = Error> {
-    let file_path_string = format!("upload.png");
-    let file = match fs::File::create(file_path_string) {
-        Ok(file) => file,
-        Err(e) => return Either::A(err(error::ErrorInternalServerError(e))),
-    };
-    Either::B(
-        field
-            .fold((file, 0i64), move |(mut file, mut acc), bytes| {
-                // fs operations are blocking, we have to execute writes
-                // on threadpool
-                web::block(move || {
-                    file.write_all(bytes.as_ref()).map_err(|e| {
-                        println!("file.write_all failed: {:?}", e);
-                        MultipartError::Payload(error::PayloadError::Io(e))
-                    })?;
-                    acc += bytes.len() as i64;
-                    Ok((file, acc))
+pub fn save_file(id: &Uuid, field: Field) -> impl Future<Item = i64, Error = Error> {
+    let validator_images = format!("{:?}", field.headers().get("content-type"));
+    println!("{:?}", field.headers());
+    if validator_images.contains("image") != true {
+        return Either::A(err(error::ErrorInternalServerError(std::io::Error::new(std::io::ErrorKind::Other, "Votre fichier n'est pas une images"))));
+    }
+
+    let file_path_string = format!("./downloadTemp/{}.png", id);
+        let file = match fs::File::create(file_path_string) {
+            Ok(file) => file,
+            Err(e) => return Either::A(err(error::ErrorInternalServerError(e))),
+        };
+        Either::B(
+            field
+                .fold((file, 0i64), move |(mut file, mut acc), bytes| {
+                    web::block(move || {
+                        file.write_all(bytes.as_ref()).map_err(|e| {
+                            println!("file.write_all failed: {:?}", e);
+                            MultipartError::Payload(error::PayloadError::Io(e))
+                        })?;
+                        acc += bytes.len() as i64;
+                        Ok((file, acc))
+                    })
+                    .map_err(|e: error::BlockingError<MultipartError>| {
+                        match e {
+                            error::BlockingError::Error(e) => e,
+                            error::BlockingError::Canceled => MultipartError::Incomplete,
+                        }
+                    })
                 })
-                .map_err(|e: error::BlockingError<MultipartError>| {
-                    match e {
-                        error::BlockingError::Error(e) => e,
-                        error::BlockingError::Canceled => MultipartError::Incomplete,
-                    }
-                })
-            })
-            .map(|(_, acc)| acc)
-            .map_err(|e| {
-                println!("save_file failed, {:?}", e);
-                error::ErrorInternalServerError(e)
-            }),
-    )
+                .map(|(_, acc)| acc)
+                .map_err(|e| {
+                    println!("save_file failed, {:?}", e);
+                    error::ErrorInternalServerError(e)
+                }),
+        )
 }

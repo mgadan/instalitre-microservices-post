@@ -63,7 +63,7 @@ pub fn upload(
 ) -> impl Future<Item = HttpResponse, Error = Error> {
     multipart
         .map_err(error::ErrorInternalServerError)
-        .map(| field | save_file(field).into_stream())
+        .map(move | field | save_file(&id, field).into_stream())
         .flatten()
         .collect()
         .map(|sizes| HttpResponse::Ok().json(sizes))
@@ -71,5 +71,6 @@ pub fn upload(
             println!("failed: {}", e);
             e
         })
+         
 
 }
