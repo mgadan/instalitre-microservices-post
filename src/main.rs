@@ -13,14 +13,18 @@ use lib::establish_connection;
 use actix_web::{middleware, App, HttpServer};
 use crate::post::model::Gen;
 use form_data::{Field, Form};
+use std::env;
+use dotenv::dotenv;
 
 fn main() {
     std::env::set_var("RUST_LOG", "actix_server=info,actix_web=info");
     env_logger::init();
 
+    dotenv().ok();
+    let port = env::var("port").expect("port must be set");
+
     let form = Form::new()
     .field("author", Field::text())
-    .field("photo", Field::text())
     .field("description", Field::text())
     .field("files", Field::file(Gen));
     
@@ -31,7 +35,7 @@ fn main() {
             .data(form.clone())
             .configure(post::router::config)
     })  
-        .bind("0.0.0.0:8001")
+        .bind(format!("0.0.0.0:{}", port))
         .expect("Can not bind to port 8000")
         .run()
         .unwrap();

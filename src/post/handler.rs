@@ -89,50 +89,32 @@ pub fn upload(
         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
 }
 
+use regex::Regex;
+
 pub fn upload2((mp, state, pool): (Multipart, Data<Form>, web::Data<PgPool>)) -> Box<dyn Future<Item = HttpResponse, Error = HttpResponse>> {
     let pg_pool = pg_pool_handler(pool).expect("la connexion a échouée");
     Box::new(
         handle_multipart(mp, state.get_ref().clone())
         .map_err(error::ErrorInternalServerError)
-        .map(|uploaded_content| {
-            let mut photo_post = format!("");
-            let mut author_post = format!("");
-            let mut description_post = format!("");
-            match uploaded_content {
-                Value::Map(mut hashmap) => {
-                    match hashmap.remove("photo") {
-                        Some(value) => match value {
-                            Value::Text(text) => photo_post = text.to_uppercase(),
-                            _ => (),
-                        }
-                        None => (),
-                    }
-                    match hashmap.remove("author") {
-                        Some(value) => match value {
-                            Value::Text(text) => author_post = text.to_uppercase(),
-                            _ => (),
-                        }
-                        None => (),
-                    }
-                    match hashmap.remove("description") {
-                        Some(value) => match value {
-                            Value::Text(text) => description_post = text,
-                            _ => (),
-                        }
-                        None => (),
-                    }
-                }
-                _ => (),
-            }
-            let new_post = NewPost {
-                photo: Uuid::parse_str(&photo_post[..]).unwrap(),
-                description: description_post,
-                author: Uuid::parse_str(&author_post[..]).unwrap(),
-            };
-            return new_post;
-        })
+        .map(|uploaded_content| form_data_value_to_new_post(uploaded_content))
         .map(move |new_post| new_post.post(&pg_pool))
-        //.map(| post | put_file_s3(src_file, dest_file))
+        .map(| post | {
+            println!("{:?}", post);
+            match post {
+                Ok(post) => {
+                    let dest_file = format!("{}/{}.png", post.author, post.photo);
+                    let src_file = format!("./{}.png", post.photo);
+
+                    println!("{}", src_file);
+                    println!("{}", dest_file);
+
+                    Ok(put_file_s3(src_file, dest_file))
+                },
+                Err(e) => {
+                    return Err(e)
+                }
+            }
+        })
         .map(| _ | HttpResponse::Created().finish())
         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string())),
     )

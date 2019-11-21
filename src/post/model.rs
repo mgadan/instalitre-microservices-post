@@ -13,6 +13,10 @@ use std::fs;
 use std::io::Write;
 use std::io::prelude::*;
 use std::fs::File;
+use std::env;
+use rusoto_core::credential::{AwsCredentials, StaticProvider};
+use rusoto_s3::{GetObjectRequest, PutObjectRequest, S3Client, S3,};
+
 
 #[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable, PartialEq)]
 #[table_name="posts"]
@@ -20,7 +24,7 @@ use std::fs::File;
     pub id: Uuid,
     pub author: Uuid,
     pub description: String,
-    pub photo: String                                                                                                                                                         
+    pub photo: Uuid                                                                                                                                                         
 }
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
 #[derive(Insertable, Deserialize, AsChangeset, Validate)]                                                                                                                                                                                                     
@@ -59,7 +63,12 @@ impl Post {
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl;
 
-        new_post.validate().map_err(|e| e);
+        match new_post.validate() {
+            Ok(_) => {},
+            Err(e) => {
+               return Err(PostError::ValidatorInvalid(e));
+           }
+       };
 
         diesel::update(dsl::posts.find(id))
             .set(new_post)
@@ -102,19 +111,19 @@ impl NewPost {
             use diesel::RunQueryDsl;
 
             self.validate().map_err(|e| e);
-   
+
            let post = self.clone();
            let new_post = Post {
                id: Uuid::new_v4(),
-               photo: format!("{}", Uuid::new_v4()),
+               photo: post.photo,
                description: post.description,
                author: post.author,
            };
-           
+
            let register = diesel::insert_into(posts::table)
            .values(new_post)
            .get_result::<Post>(connection)?;
-   
+           println!("erreur");
            Ok(register)
     }
 }
@@ -155,14 +164,8 @@ pub fn save_file(id: &Uuid, field: Field) -> impl Future<Item = u16, Error = Err
         )
 }
 
-use std::env;
 
-use rusoto_core::credential::{AwsCredentials, StaticProvider};
-use rusoto_s3::{GetObjectRequest, PutObjectRequest, S3Client, S3,
-};
-
-
-pub fn put_file_s3(srcFile: String, destFile: String) -> impl Future<Item = rusoto_s3::PutObjectOutput, Error = Error> {
+pub fn put_file_s3(src_file: String, dest_file: String) -> impl Future<Item = (), Error = Error> {
     let region =  rusoto_core::region::Region::Custom {
         name: env::var("region").expect("region must be set"),
         endpoint: env::var("endpoint").expect("endpoint must be set"),
@@ -182,22 +185,27 @@ pub fn put_file_s3(srcFile: String, destFile: String) -> impl Future<Item = ruso
     );
 
     web::block(move || {  
-        let file= File::open(&srcFile[..]).unwrap();
+        let file= File::open(&src_file[..]).unwrap();
         let data: Result<Vec<_>, _> = file.bytes().collect();
         let data = data.expect("Unable to read data");
 
+        let src_clone = src_file.clone();
+
         let put_request = PutObjectRequest {
             bucket: env::var("nameBucket").expect("nameBucket must be set"),
-            key: destFile,
+            key: dest_file,
             body: Some(data.into()),
             ..Default::default()
         };
 
+
         client
             .put_object(put_request)
             .sync()
-            .map(|res| res)
+            .map(move | _ | fs::remove_file(src_clone))
+            .map(|_| ())
             .map_err(|e| e)
+            
     })
     .map(| res | res)
     .map_err(|e: error::BlockingError<rusoto_core::RusotoError<rusoto_s3::PutObjectError>>| {
@@ -258,4 +266,49 @@ pub struct Gen;
          p.push(format!("{}.png", Uuid::new_v4()));
          Some(p)
      }
+}
+use regex::Regex;
+use form_data::Value;
+pub fn form_data_value_to_new_post(uploaded_content: Value) -> NewPost {
+
+    let mut photo_post = format!("");
+    let mut author_post = format!("");
+    let mut description_post = format!("");
+
+    match uploaded_content {
+        Value::Map(mut hashmap) => {
+            match hashmap.remove("author") {
+                Some(value) => match value {
+                    Value::Text(text) => author_post = text.to_uppercase(),
+                    _ => (),
+                }
+                None => (),
+            }
+            match hashmap.remove("description") {
+                Some(value) => match value {
+                    Value::Text(text) => description_post = text,
+                    _ => (),
+                }
+                None => (),
+            }
+            match hashmap.remove("files") {
+                Some(value) => match value {
+                    Value::File(_, path_buf) => photo_post = format!("{:?}", path_buf),
+                    _ => (),
+                }
+                None => (),
+            }
+        }
+        _ => (),
+    }
+    
+    let regex = Regex::new(r"(?m)[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}").unwrap();
+    let caps = regex.captures(&photo_post[..]).unwrap();
+    let new_post = NewPost {
+        photo: Uuid::parse_str(&caps.get(0).unwrap().as_str()[..]).unwrap(),
+        description: description_post,
+        author: Uuid::parse_str(&author_post[..]).unwrap(),
+    };
+    println!("{:?}", new_post);
+    return new_post;
 }
