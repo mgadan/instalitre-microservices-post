@@ -59,12 +59,7 @@ impl Post {
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl;
 
-        match new_post.validate() {
-            Ok(_) => {},
-            Err(e) => {
-               return Err(PostError::ValidatorInvalid(e));
-           }
-       };
+        new_post.validate().map_err(|e| e);
 
         diesel::update(dsl::posts.find(id))
             .set(new_post)
@@ -97,37 +92,30 @@ pub struct NewPost {
     pub author:  Uuid,
     #[validate(length(min = 1, max = 1000))]
     pub description: String,
-    #[validate(contains = "data:image/jpg;base64")]
-    pub photo: String
+    pub photo: Uuid
 }
 
 
 
 impl NewPost {
     pub fn post(&self, connection: &PgConnection) -> Result<Post, PostError> {
-        use diesel::RunQueryDsl;
-        println!("{:?}", self);
-        
-        match self.validate() {
-             Ok(_) => {},
-             Err(e) => {
-                return Err(PostError::ValidatorInvalid(e));
-            }
-        };
+            use diesel::RunQueryDsl;
 
-        let post = self.clone();
-        let new_post = Post {
-            id: Uuid::new_v4(),
-            photo: format!("{}", Uuid::new_v4()),
-            description: post.description,
-            author: post.author,
-        };
-        
-        let register = diesel::insert_into(posts::table)
-        .values(new_post)
-        .get_result::<Post>(connection)?;
-
-        Ok(register)
+            self.validate().map_err(|e| e);
+   
+           let post = self.clone();
+           let new_post = Post {
+               id: Uuid::new_v4(),
+               photo: format!("{}", Uuid::new_v4()),
+               description: post.description,
+               author: post.author,
+           };
+           
+           let register = diesel::insert_into(posts::table)
+           .values(new_post)
+           .get_result::<Post>(connection)?;
+   
+           Ok(register)
     }
 }
 
@@ -163,55 +151,111 @@ pub fn save_file(id: &Uuid, field: Field) -> impl Future<Item = u16, Error = Err
                     })
                 })
                 .map(| _ | 200)
-                .map_err(|e| {
-                    println!("save_file failed, {:?}", e);
-                    error::ErrorInternalServerError(e)
-                }),
+                .map_err(|e| error::ErrorInternalServerError(e)),
         )
 }
 
-use s3::bucket::Bucket;
-use s3::credentials::Credentials;
-use s3::region::Region;
-use dotenv::dotenv;
 use std::env;
 
+use rusoto_core::credential::{AwsCredentials, StaticProvider};
+use rusoto_s3::{GetObjectRequest, PutObjectRequest, S3Client, S3,
+};
 
-pub fn put_file_s3(srcFile: String, destFile: String) -> impl Future<Item = u16, Error = Error> {
-    let region = Region::Custom {
-        region: env::var("region").expect("region must be set"),
-        endpoint: env::var("endpoint").expect("endpoint must be set")
+
+pub fn put_file_s3(srcFile: String, destFile: String) -> impl Future<Item = rusoto_s3::PutObjectOutput, Error = Error> {
+    let region =  rusoto_core::region::Region::Custom {
+        name: env::var("region").expect("region must be set"),
+        endpoint: env::var("endpoint").expect("endpoint must be set"),
     };
 
-    let credentials = Credentials::new(
-        Some(env::var("accesskey").expect("accesskey must be set")), 
-        Some(env::var("secretkey").expect("secretkey must be set")), 
-        None, 
-    None);
+    let credentials = AwsCredentials::new(
+        env::var("accesskey").expect("accesskey must be set"), 
+        env::var("secretkey").expect("secretkey must be set"), 
+        None,
+        None
+    );
 
-    let bucket = Bucket::new(
-        &env::var("nameBucket").expect("nameBucket must be set"),
-        region,
-        credentials
-    ).unwrap();
+    let client = S3Client::new_with(
+        rusoto_core::request::HttpClient::new().expect("Failed to creat HTTP client"),
+        StaticProvider::from(credentials), 
+        region
+    );
 
     web::block(move || {  
-        let srcFile_slice: &str = &srcFile[..];
-        let destFile_slice: &str = &destFile[..];
-
-        let file= File::open(srcFile_slice).unwrap();
+        let file= File::open(&srcFile[..]).unwrap();
         let data: Result<Vec<_>, _> = file.bytes().collect();
         let data = data.expect("Unable to read data");
-        let (_, code) = bucket.put_object(destFile_slice, &data, "image/png").unwrap();
-        fs::remove_file(destFile_slice);
-        println!("{:?}", code);
-        Ok(code)
+
+        let put_request = PutObjectRequest {
+            bucket: env::var("nameBucket").expect("nameBucket must be set"),
+            key: destFile,
+            body: Some(data.into()),
+            ..Default::default()
+        };
+
+        client
+            .put_object(put_request)
+            .sync()
+            .map(|res| res)
+            .map_err(|e| e)
     })
-    .map(| code | code)
-    .map_err(|e: error::BlockingError<MultipartError>| {
+    .map(| res | res)
+    .map_err(|e: error::BlockingError<rusoto_core::RusotoError<rusoto_s3::PutObjectError>>| {
         match e {
             error::BlockingError::Error(e) => error::ErrorInternalServerError(e),
             error::BlockingError::Canceled => error::ErrorInternalServerError(MultipartError::Incomplete),
         }
     })
+}
+
+pub fn get_file_s3(file_path: String) -> Result<String, PostError> {
+        let region =  rusoto_core::region::Region::Custom {
+            name: env::var("region").expect("region must be set"),
+            endpoint: env::var("endpoint").expect("endpoint must be set"),
+        };
+
+        let credentials = AwsCredentials::new(
+            env::var("accesskey").expect("accesskey must be set"), 
+            env::var("secretkey").expect("secretkey must be set"), 
+            None,
+            None
+        );
+
+        let client = S3Client::new_with(
+            rusoto_core::request::HttpClient::new().expect("Failed to creat HTTP client"),
+            StaticProvider::from(credentials), 
+            region
+        );
+
+        let get_req = GetObjectRequest {
+            bucket: env::var("nameBucket").expect("nameBucket must be set"),
+            key: file_path,
+            ..Default::default()
+        };
+
+        match client
+            .get_object(get_req)
+            .sync(){
+                Ok(res) => {
+                    let mut stream = res.body.unwrap().into_blocking_read();
+                    let mut body = Vec::new();
+                    stream.read_to_end(&mut body).unwrap();
+            
+                    Ok(base64::encode(&body))
+                },
+                Err(e) => return Err(PostError::S3GetError(e))
+            }
+}
+use std::path::PathBuf;
+use form_data::FilenameGenerator;
+
+#[derive(Debug)]
+pub struct Gen;
+ 
+ impl FilenameGenerator for Gen {
+     fn next_filename(&self, _: &mime::Mime) -> Option<PathBuf> {
+         let mut p = PathBuf::new();
+         p.push(format!("{}.png", Uuid::new_v4()));
+         Some(p)
+     }
 }
