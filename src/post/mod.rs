@@ -1,3 +1,3 @@
 pub mod router;
 mod handler;
-mod model;
+pub mod models;
