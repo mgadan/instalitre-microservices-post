@@ -14,7 +14,7 @@ use std::io::{
 use std::fs::File;
 use std::env;
 use rusoto_core::credential::{AwsCredentials, StaticProvider};
-use rusoto_s3::{GetObjectRequest, PutObjectRequest, S3Client, S3,};
+use rusoto_s3::{DeleteObjectRequest, GetObjectRequest, PutObjectRequest, S3Client, S3,};
 use std::path::PathBuf;
 use form_data::{ FilenameGenerator, Value};
 use regex::Regex;
@@ -189,6 +189,31 @@ pub fn get_file_s3(file_path: String) -> Result<String, PostError> {
             }
 }
 
+
+pub fn delete_file_s3(file_path: String) -> Result<(), PostError> {
+    let client = match get_client() {
+        Ok(value)=>value,
+        Err(e)=>return Err(e),
+    };
+
+    let name_bucket = match env::var("nameBucket"){
+        Ok(name)=>name,
+        Err(e)=> return Err(PostError::InvalidEnv(e)),  
+      };
+
+    let delete_req = DeleteObjectRequest {
+        bucket: name_bucket,
+        key: file_path,
+        ..Default::default()
+    };
+
+    match client
+        .delete_object(delete_req)
+        .sync(){
+            Ok(_) => Ok(()),
+            Err(e) => return Err(PostError::S3DeleteError(e))
+        }
+}
 #[derive(Debug)]
 pub struct Gen;
  

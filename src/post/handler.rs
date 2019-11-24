@@ -42,21 +42,20 @@ fn pg_pool_handler(pool: web::Data<PgPool>) -> Result<PgPooledConnection, HttpRe
      let pg_pool = pg_pool_handler(pool)?;
      Ok(HttpResponse::Ok().json(PostList::get_all(&author, &pg_pool)))
  }
-/*
-pub fn post(new_post: web::Json<NewPost>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
+
+ pub fn delete_all(id: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
     let pg_pool = pg_pool_handler(pool)?;
-    new_post
-        .post(&pg_pool)
+    PostList::delete_all(&id, &pg_pool)
+        .map(|_| HttpResponse::Ok().json(()))
+        .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
+}
+
+pub fn get(id: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
+    let pg_pool = pg_pool_handler(pool)?;
+    Post::get(&id, &pg_pool)
         .map(|post| HttpResponse::Ok().json(post))
         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
-}*/
-
-// pub fn get(id: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
-//     let pg_pool = pg_pool_handler(pool)?;
-//     Post::get(&id, &pg_pool)
-//         .map(|post| HttpResponse::Ok().json(post))
-//         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
-// }
+}
 
 pub fn delete(id: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
     let pg_pool = pg_pool_handler(pool)?;
@@ -72,24 +71,7 @@ pub fn put(id: web::Path<Uuid>, new_post: web::Json<UpdatePost>, pool: web::Data
         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
 }
 
-pub fn upload(
-    uuid: web::Path<(Uuid, Uuid)>,
-    multipart: Multipart,
-) -> impl Future<Item = HttpResponse, Error = HttpResponse> {
-    let dest_file = format!("{}/{}.png", uuid.0, uuid.1);
-    let uuid_temp = Uuid::new_v4();
-    let src_file = format!("./{}.png", uuid_temp);
-    multipart
-        .map_err(error::ErrorInternalServerError)
-        .map(move | field | save_file(&uuid_temp, field).into_stream())
-        .flatten()
-        .collect()
-        .map(move | _ | put_file_s3(src_file, dest_file))
-        .flatten()
-        .map(| _ | HttpResponse::Created().finish())
-        .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
-}
-pub fn upload2((mp, state, pool): (Multipart, Data<Form>, web::Data<PgPool>)) -> Box<dyn Future<Item = HttpResponse, Error = HttpResponse>> {
+pub fn upload((mp, state, pool): (Multipart, Data<Form>, web::Data<PgPool>)) -> Box<dyn Future<Item = HttpResponse, Error = HttpResponse>> {
     let pg_pool = pg_pool_handler(pool).expect("la connexion a échouée");
     Box::new(
         handle_multipart(mp, state.get_ref().clone())

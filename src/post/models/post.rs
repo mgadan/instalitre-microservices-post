@@ -4,8 +4,9 @@ use uuid::Uuid;
 use crate::schema::posts;
 use diesel::PgConnection;
 use crate::errors::PostError;
+use crate::post::models::s3::delete_file_s3;
 
-#[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable, PartialEq)]
+#[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable, PartialEq, Clone)]
 #[table_name="posts"]
     pub struct Post {
     pub id: Uuid,
@@ -22,7 +23,7 @@ pub struct UpdatePost {
 }
 
 impl Post {
-    pub fn get(_id: &Uuid, connection: &PgConnection) -> Result<Post, PostError> {
+    pub fn get(id: &Uuid, connection: &PgConnection) -> Result<Post, PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl::*;
@@ -38,11 +39,31 @@ impl Post {
     pub fn delete(id: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
+        use crate::schema;
+        use crate::schema::posts::dsl::*;
+
+        let post: Post = schema::posts::table
+            .find(id)
+            .first(connection)?;   
+        
+
+        diesel::delete(posts.find(id))
+            .execute(connection)?;
+
+        delete_file_s3(format!("{}/{}.png", post.author, post.photo))?;
+
+        Ok(())
+    }
+
+    fn delete_self(self, connection: &PgConnection) -> Result<Post, PostError> {
+        use diesel::QueryDsl;
+        use diesel::RunQueryDsl;
         use crate::schema::posts::dsl;
 
-        diesel::delete(dsl::posts.find(id))
+
+        diesel::delete(dsl::posts.find(self.id))
             .execute(connection)?;
-        Ok(())
+        Ok(self)
     }
 
      pub fn put(id: &Uuid, new_post: &UpdatePost, connection: &PgConnection) -> Result<(), PostError> {
@@ -82,6 +103,33 @@ impl PostList {
 
         PostList(result)
     }
+
+    pub fn delete_all(param_author: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
+        use crate::schema::posts::dsl::*;
+        use diesel::ExpressionMethods;
+        use diesel::QueryDsl;
+        use diesel::RunQueryDsl;
+
+        let result = 
+        posts
+            .filter(author.eq(param_author))
+            .load::<Post>(connection)
+            .expect("Error loading post");
+
+        for post in result {
+            match post.clone().delete_self(connection) {
+                Ok(post)=>{
+                    match delete_file_s3(format!("{}/{}.png", post.author, post.photo)){
+                        Ok(_)=>(),
+                        Err(e)=>return Err(e),
+                    }
+                },
+                Err(e)=>return Err(e),
+            }
+        }
+
+        Ok(())
+    }   
 }
 
 #[derive(Deserialize, Debug, Clone, Validate)]
