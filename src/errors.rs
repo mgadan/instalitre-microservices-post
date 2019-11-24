@@ -9,8 +9,17 @@ pub enum PostError {
     S3PutError(rusoto_core::RusotoError<rusoto_s3::PutObjectError>),
     S3GetError(rusoto_core::RusotoError<rusoto_s3::GetObjectError>),
     ValidatorInvalid(validator::ValidationErrors),
+    InvalidReadFile(std::io::Error),
+    InvalidEnv(std::env::VarError),
     PGConnectionError
 }
+
+impl From<std::env::VarError> for PostError {
+    fn from(error: std::env::VarError) -> Self {
+        PostError::InvalidEnv(error)
+    }
+}
+
 
 impl From<BcryptError> for PostError {
     fn from(error: BcryptError) -> Self {
@@ -43,6 +52,12 @@ impl From<rusoto_core::RusotoError<rusoto_s3::GetObjectError>> for PostError {
     }
 }
 
+impl From<std::io::Error> for PostError {
+    fn from(error: std::io::Error) -> Self {
+        PostError::InvalidReadFile(error)
+    }
+}
+
 impl fmt::Display for PostError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
@@ -51,6 +66,8 @@ impl fmt::Display for PostError {
             PostError::ValidatorInvalid(error) => write!(f, "{}", error),
             PostError::S3PutError(error) => write!(f, "{}", error),
             PostError::S3GetError(error) => write!(f, "{}", error),
+            PostError::InvalidReadFile(error) => write!(f, "{}", error),
+            PostError::InvalidEnv(error) => write!(f, "{}", error),
             PostError::PGConnectionError => write!(f, "error obtaining a db connection")
         }
     }

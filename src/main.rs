@@ -6,12 +6,12 @@ extern crate diesel;
 
 pub mod schema;
 pub mod post;
-pub mod lib;
+pub mod db_connection;
 pub mod errors;
 
-use lib::establish_connection;
+use db_connection::establish_connection;
 use actix_web::{middleware, App, HttpServer};
-use crate::post::model::Gen;
+use crate::post::models::s3::Gen;
 use form_data::{Field, Form};
 use std::env;
 use dotenv::dotenv;
@@ -24,9 +24,9 @@ fn main() {
     let port = env::var("port").expect("port must be set");
 
     let form = Form::new()
-    .field("author", Field::text())
-    .field("description", Field::text())
-    .field("files", Field::file(Gen));
+        .field("author", Field::text())
+        .field("description", Field::text())
+        .field("files", Field::file(Gen));
     
     HttpServer::new(move || {
         App::new()

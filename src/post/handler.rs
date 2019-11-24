@@ -1,13 +1,14 @@
 extern crate diesel;
-use actix_web::{HttpRequest, HttpResponse, Error, error};
+use actix_web::{HttpRequest, HttpResponse, error};
 use actix_web::web::Data;
-use crate::post::model::*;
+use crate::post::models::post::*; 
+use crate::post::models::s3::*; 
 use actix_web::web;
 use uuid::Uuid;
-use crate::lib::{ PgPool, PgPooledConnection };
+use crate::db_connection::{ PgPool, PgPooledConnection };
 use actix_multipart::Multipart;
 use futures::{Future, Stream};
-use form_data::{handle_multipart, Form, Value};
+use form_data::{handle_multipart, Form};
 
 // macro_rules! function_handler {
 //     ( $handler_name:ident ($($arg:ident:$typ:ty),*) -> $body:expr) => {
@@ -37,9 +38,9 @@ fn pg_pool_handler(pool: web::Data<PgPool>) -> Result<PgPooledConnection, HttpRe
     .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
 }
 
- pub fn get_all(_req: HttpRequest, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
+ pub fn get_all(_req: HttpRequest, author: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
      let pg_pool = pg_pool_handler(pool)?;
-     Ok(HttpResponse::Ok().json(PostList::get_all(&pg_pool)))
+     Ok(HttpResponse::Ok().json(PostList::get_all(&author, &pg_pool)))
  }
 /*
 pub fn post(new_post: web::Json<NewPost>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
@@ -50,12 +51,12 @@ pub fn post(new_post: web::Json<NewPost>, pool: web::Data<PgPool>) -> Result<Htt
         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
 }*/
 
-pub fn get(id: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
-    let pg_pool = pg_pool_handler(pool)?;
-    Post::get(&id, &pg_pool)
-        .map(|post| HttpResponse::Ok().json(post))
-        .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
-}
+// pub fn get(id: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
+//     let pg_pool = pg_pool_handler(pool)?;
+//     Post::get(&id, &pg_pool)
+//         .map(|post| HttpResponse::Ok().json(post))
+//         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
+// }
 
 pub fn delete(id: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
     let pg_pool = pg_pool_handler(pool)?;
@@ -88,9 +89,6 @@ pub fn upload(
         .map(| _ | HttpResponse::Created().finish())
         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
 }
-
-use regex::Regex;
-
 pub fn upload2((mp, state, pool): (Multipart, Data<Form>, web::Data<PgPool>)) -> Box<dyn Future<Item = HttpResponse, Error = HttpResponse>> {
     let pg_pool = pg_pool_handler(pool).expect("la connexion a échouée");
     Box::new(
