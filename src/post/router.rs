@@ -20,7 +20,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route(web::delete().to(handler::delete_all))
     );
 
-
     cfg.service(
         web::resource("/file/{author}/{post}")
             .route(web::get().to(handler::get_file))

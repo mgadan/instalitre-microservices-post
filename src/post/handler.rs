@@ -75,24 +75,19 @@ pub fn upload((mp, state, pool): (Multipart, Data<Form>, web::Data<PgPool>)) -> 
     let pg_pool = pg_pool_handler(pool).expect("la connexion a échouée");
     Box::new(
         handle_multipart(mp, state.get_ref().clone())
-        .map_err(error::ErrorInternalServerError)
         .map(|uploaded_content| form_data_value_to_new_post(uploaded_content))
         .map(move |new_post| new_post.post(&pg_pool))
         .map(| post | {
             println!("{:?}", post);
             match post {
                 Ok(post) => {
-                    let dest_file = format!("{}/{}.png", post.author, post.photo);
-                    let src_file = format!("./{}.png", post.photo);
 
-                    println!("{}", src_file);
-                    println!("{}", dest_file);
-
-                    Ok(put_file_s3(src_file, dest_file))
+                    Ok(())
                 },
                 Err(e) => {
-                    return Err(e)
-                }
+                    println!("{}", e.to_string());
+                    return Err(e);
+                },
             }
         })
         .map(| _ | HttpResponse::Created().finish())

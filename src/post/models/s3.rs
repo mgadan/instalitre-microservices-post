@@ -61,7 +61,7 @@ fn get_region() -> Result<rusoto_signature::Region, PostError> {
         Err(e)=> return Err(PostError::InvalidEnv(e)),  
       };
 
-    let region_endpoint = match env::var("enpoint"){
+    let region_endpoint = match env::var("endpoint"){
         Ok(name)=>name,
         Err(e)=> return Err(PostError::InvalidEnv(e)),  
       };
@@ -112,8 +112,7 @@ fn get_client() -> Result<rusoto_s3::S3Client, PostError> {
     Ok(client)
 }
 
-pub fn put_file_s3(src_file: String, dest_file: String) -> impl Future<Item = (), Error = Error> {
-    web::block(move || {  
+pub fn put_file_s3(src_file: String, dest_file: String) -> Result<(), PostError> {
         //read data
         let file= File::open(&src_file[..]).unwrap();
         let data: Result<Vec<_>, _> = file.bytes().collect();
@@ -148,17 +147,8 @@ pub fn put_file_s3(src_file: String, dest_file: String) -> impl Future<Item = ()
                 Ok(_)=> Ok(()),
                 Err(e)=> return Err(PostError::S3PutError(e))
             }
-            
-    })
-    .map(| res | res)
-    .map_err(|e| {
-        match e {
-            error::BlockingError::Error(e) => error::ErrorInternalServerError(e),
-            error::BlockingError::Canceled => error::ErrorInternalServerError(MultipartError::Incomplete),
-        }
-    })
 }
-
+    
 pub fn get_file_s3(file_path: String) -> Result<String, PostError> {
         let client = match get_client() {
             Ok(value)=>value,
@@ -206,7 +196,6 @@ pub fn delete_file_s3(file_path: String) -> Result<(), PostError> {
         key: file_path,
         ..Default::default()
     };
-
     match client
         .delete_object(delete_req)
         .sync(){
@@ -257,7 +246,7 @@ pub fn form_data_value_to_new_post(uploaded_content: Value) -> NewPost {
         }
         _ => (),
     }
-    
+    println!("photo: {}", photo_post);
     let regex = Regex::new(r"(?m)[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}").unwrap();
     let caps = regex.captures(&photo_post[..]).unwrap();
     let new_post = NewPost {

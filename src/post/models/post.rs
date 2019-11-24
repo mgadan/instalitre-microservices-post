@@ -5,6 +5,7 @@ use crate::schema::posts;
 use diesel::PgConnection;
 use crate::errors::PostError;
 use crate::post::models::s3::delete_file_s3;
+use crate::post::models::s3::put_file_s3;
 
 #[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable, PartialEq, Clone)]
 #[table_name="posts"]
@@ -12,7 +13,8 @@ use crate::post::models::s3::delete_file_s3;
     pub id: Uuid,
     pub author: Uuid,
     pub description: String,
-    pub photo: Uuid                                                                                                                                                         
+    pub photo: Uuid,
+    pub created_at: chrono::NaiveDateTime,                                                                                                                                                         
 }
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
 #[derive(Insertable, Deserialize, AsChangeset, Validate)]                                                                                                                                                                                                     
@@ -98,6 +100,7 @@ impl PostList {
         let result = 
             posts
                 .filter(author.eq(param_author))
+                .order_by(created_at.desc())
                 .load::<Post>(connection)
                 .expect("Error loading post");
 
@@ -143,24 +146,30 @@ pub struct NewPost {
 impl NewPost {
     pub fn post(&self, connection: &PgConnection) -> Result<Post, PostError> {
             use diesel::RunQueryDsl;
+            use diesel::dsl;
+            use diesel::prelude::*;
 
             match self.validate(){
                 Ok(_)=>(),
                 Err(e) => return Err(PostError::ValidatorInvalid(e)),
             }
-
            let post = self.clone();
-           let new_post = Post {
-               id: Uuid::new_v4(),
-               photo: post.photo,
-               description: post.description,
-               author: post.author,
-           };
+           println!("{}", post.photo);
 
            let register = diesel::insert_into(posts::table)
-           .values(new_post)
-           .get_result::<Post>(connection)?;
-           println!("erreur");
+           .values((
+                posts::id.eq(Uuid::new_v4()),
+                posts::photo.eq(post.photo),
+                posts::description.eq(post.description),
+                posts::author.eq(post.author),
+                posts::created_at.eq(dsl::now),
+            ))           
+            .get_result::<Post>(connection)?;
+
+            let dest_file = format!("{}/{}.png", post.author, post.photo);
+            let src_file = format!("./{}.png", post.photo);
+            put_file_s3(src_file, dest_file)?;
+
            Ok(register)
     }
 }

@@ -11,8 +11,15 @@ pub enum PostError {
     S3DeleteError(rusoto_core::RusotoError<rusoto_s3::DeleteObjectError>),
     ValidatorInvalid(validator::ValidationErrors),
     InvalidReadFile(std::io::Error),
+    InvalidMultipart(actix_multipart::MultipartError),
     InvalidEnv(std::env::VarError),
     PGConnectionError
+}
+
+impl From<actix_multipart::MultipartError> for PostError {
+    fn from(error: actix_multipart::MultipartError) -> Self {
+        PostError::InvalidMultipart(error)
+    }
 }
 
 impl From<rusoto_core::RusotoError<rusoto_s3::DeleteObjectError>> for PostError {
@@ -76,6 +83,7 @@ impl fmt::Display for PostError {
             PostError::S3DeleteError(error) => write!(f, "{}", error),
             PostError::InvalidReadFile(error) => write!(f, "{}", error),
             PostError::InvalidEnv(error) => write!(f, "{}", error),
+            PostError::InvalidMultipart(error) => write!(f, "{}", error),
             PostError::PGConnectionError => write!(f, "error obtaining a db connection")
         }
     }

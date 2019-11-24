@@ -4,5 +4,6 @@ table! {
         author -> Uuid,
         description -> Text,
         photo -> Uuid,
+        created_at -> Timestamp,
     }
 }
