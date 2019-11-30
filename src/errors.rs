@@ -16,6 +16,7 @@ pub enum PostError {
     PGConnectionError
 }
 
+
 impl From<actix_multipart::MultipartError> for PostError {
     fn from(error: actix_multipart::MultipartError) -> Self {
         PostError::InvalidMultipart(error)
@@ -78,9 +79,9 @@ impl fmt::Display for PostError {
             PostError::HashError(error) => write!(f, "{}", error),
             PostError::DBError(error) => write!(f, "{}", error),
             PostError::ValidatorInvalid(error) => write!(f, "{}", error),
-            PostError::S3PutError(error) => write!(f, "{}", error),
-            PostError::S3GetError(error) => write!(f, "{}", error),
-            PostError::S3DeleteError(error) => write!(f, "{}", error),
+            PostError::S3PutError(error) => write!(f, "Erreur enregistrement d'un fichier sur s3\n{}", error),
+            PostError::S3GetError(error) => write!(f, "Erreur d'obtention d'un fichier sur s3\n{}", error),
+            PostError::S3DeleteError(error) => write!(f, "Erreur d'une supression d'un fichier sur s3\n{}", error),
             PostError::InvalidReadFile(error) => write!(f, "{}", error),
             PostError::InvalidEnv(error) => write!(f, "{}", error),
             PostError::InvalidMultipart(error) => write!(f, "{}", error),
