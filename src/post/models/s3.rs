@@ -142,10 +142,15 @@ pub fn put_file_s3(src_file: String, dest_file: String) -> Result<(), PostError>
 
         match client
             .put_object(put_request)
-            .sync()
-            .map(move | _ | fs::remove_file(src_file.clone())) {
-                Ok(_)=> Ok(()),
-                Err(e)=> return Err(PostError::S3PutError(e))
+            .sync() {
+                Ok(_)=> {
+                    fs::remove_file(src_file.clone()).expect("fichier n'existe pas");
+                    Ok(())
+                },
+                Err(e)=> {
+                    fs::remove_file(src_file.clone()).expect("fichier n'existe pas");
+                    return Err(PostError::S3PutError(e))
+                }
             }
 }
     
@@ -247,7 +252,7 @@ pub fn form_data_value_to_new_post(uploaded_content: Value) -> NewPost {
         _ => (),
     }
     println!("photo: {}", photo_post);
-    let regex = Regex::new(r"(?m)[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}").unwrap();
+    let regex = Regex::new(r"(?m)[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}").unwrap();    
     let caps = regex.captures(&photo_post[..]).unwrap();
     let new_post = NewPost {
         photo: Uuid::parse_str(&caps.get(0).unwrap().as_str()[..]).unwrap(),

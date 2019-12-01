@@ -13,7 +13,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             .route(web::delete().to_async(handler::delete))
             .route(web::put().to_async(handler::put))
     );
-
+    
     cfg.service(
         web::resource("/user/{id}")
             .route(web::get().to(handler::get_all))

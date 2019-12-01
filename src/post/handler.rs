@@ -9,6 +9,10 @@ use crate::db_connection::{ PgPool, PgPooledConnection };
 use actix_multipart::Multipart;
 use futures::{Future, Stream};
 use form_data::{handle_multipart, Form};
+use futures::{
+    future::{self, Either},
+};
+use std::fs;
 
 // macro_rules! function_handler {
 //     ( $handler_name:ident ($($arg:ident:$typ:ty),*) -> $body:expr) => {
@@ -40,7 +44,9 @@ fn pg_pool_handler(pool: web::Data<PgPool>) -> Result<PgPooledConnection, HttpRe
 
  pub fn get_all(_req: HttpRequest, author: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
      let pg_pool = pg_pool_handler(pool)?;
-     Ok(HttpResponse::Ok().json(PostList::get_all(&author, &pg_pool)))
+     PostList::get_all(&author, &pg_pool)
+        .map(|res| HttpResponse::Ok().json(res))
+        .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
  }
 
  pub fn delete_all(id: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
@@ -72,25 +78,19 @@ pub fn put(id: web::Path<Uuid>, new_post: web::Json<UpdatePost>, pool: web::Data
 }
 
 pub fn upload((mp, state, pool): (Multipart, Data<Form>, web::Data<PgPool>)) -> Box<dyn Future<Item = HttpResponse, Error = HttpResponse>> {
-    let pg_pool = pg_pool_handler(pool).expect("la connexion a échouée");
+    let pg_pool = match pg_pool_handler(pool){
+        Ok(db_connection)=>db_connection,
+        Err(e)=> return Box::new(future::err(e)),
+    };
     Box::new(
         handle_multipart(mp, state.get_ref().clone())
         .map(|uploaded_content| form_data_value_to_new_post(uploaded_content))
-        .map(move |new_post| new_post.post(&pg_pool))
-        .map(| post | {
-            println!("{:?}", post);
-            match post {
-                Ok(post) => {
-
-                    Ok(())
-                },
-                Err(e) => {
-                    println!("{}", e.to_string());
-                    return Err(e);
-                },
+        .map(move |new_post| {
+            match new_post.post(&pg_pool) {
+                Ok(_)=> HttpResponse::Created().finish(),
+                Err(e)=> HttpResponse::InternalServerError().json(e.to_string())
             }
         })
-        .map(| _ | HttpResponse::Created().finish())
         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string())),
     )
 }

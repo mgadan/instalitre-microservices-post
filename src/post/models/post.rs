@@ -6,6 +6,12 @@ use diesel::PgConnection;
 use crate::errors::PostError;
 use crate::post::models::s3::delete_file_s3;
 use crate::post::models::s3::put_file_s3;
+use futures::{
+    future::{self, Either},
+    Future,
+};
+use actix_web::{error, web, Error};
+use std::fs;
 
 #[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable, PartialEq, Clone)]
 #[table_name="posts"]
@@ -25,31 +31,29 @@ pub struct UpdatePost {
 }
 
 impl Post {
-    pub fn get(id: &Uuid, connection: &PgConnection) -> Result<Post, PostError> {
+    pub fn get(id_post: &Uuid, connection: &PgConnection) -> Result<Post, PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
-        use crate::schema::posts::dsl::*;
         use crate::schema;
 
         let post = schema::posts::table
-                    .find(id)
-                    .first(connection)?;
+            .find(id_post)
+            .first(connection)?;
 
         Ok(post)
     }
 
-    pub fn delete(id: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
+    pub fn delete(id_post: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use crate::schema;
         use crate::schema::posts::dsl::*;
 
         let post: Post = schema::posts::table
-            .find(id)
+            .find(id_post)
             .first(connection)?;   
-        
 
-        diesel::delete(posts.find(id))
+        diesel::delete(posts.find(id_post))
             .execute(connection)?;
 
         delete_file_s3(format!("{}/{}.png", post.author, post.photo))?;
@@ -62,7 +66,6 @@ impl Post {
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl;
 
-
         diesel::delete(dsl::posts.find(self.id))
             .execute(connection)?;
         Ok(self)
@@ -72,13 +75,8 @@ impl Post {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use crate::schema::posts::dsl;
-
-        match new_post.validate() {
-            Ok(_) => {},
-            Err(e) => {
-               return Err(PostError::ValidatorInvalid(e));
-           }
-       };
+        
+        new_post.validate()?;
 
         diesel::update(dsl::posts.find(id))
             .set(new_post)
@@ -91,7 +89,7 @@ impl Post {
 pub struct PostList(pub Vec<Post>);
 
 impl PostList {
-    pub fn get_all(param_author: &Uuid, connection: &PgConnection) -> Self{
+    pub fn get_all(param_author: &Uuid, connection: &PgConnection) -> Result<Self, PostError> {
         use crate::schema::posts::dsl::*;
         use diesel::ExpressionMethods;
         use diesel::QueryDsl;
@@ -101,10 +99,9 @@ impl PostList {
             posts
                 .filter(author.eq(param_author))
                 .order_by(created_at.desc())
-                .load::<Post>(connection)
-                .expect("Error loading post");
+                .load::<Post>(connection)?;
 
-        PostList(result)
+        Ok(PostList(result))
     }
 
     pub fn delete_all(param_author: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
@@ -144,32 +141,42 @@ pub struct NewPost {
 }
 
 impl NewPost {
-    pub fn post(&self, connection: &PgConnection) -> Result<Post, PostError> {
-            use diesel::RunQueryDsl;
-            use diesel::dsl;
-            use diesel::prelude::*;
-
-            match self.validate(){
-                Ok(_)=>(),
-                Err(e) => return Err(PostError::ValidatorInvalid(e)),
-            }
-           let post = self.clone();
-           println!("{}", post.photo);
-
-           let register = diesel::insert_into(posts::table)
-           .values((
+    pub fn post(&self, connection: &PgConnection) ->  Result<Post, Error> {
+        use diesel::RunQueryDsl;
+        use diesel::dsl;
+        use diesel::prelude::*;
+        let post = self.clone();
+        let dest_file = format!("{}/{}.png", post.author, post.photo);
+        let src_file = format!("./{}.png", post.photo);
+        match self.validate() {
+            Ok(_)=>(),
+            Err(e)=> {
+                fs::remove_file(src_file.clone()).expect("le fichier n'existe pas");
+                return Err(error::ErrorInternalServerError(e.to_string()))
+             },               
+         };
+        println!("{}", post.photo);
+        match put_file_s3(src_file.clone(), dest_file) {
+            Ok(_)=>(),
+            Err(e)=> {
+               return Err(error::ErrorInternalServerError(e.to_string()))
+            },
+        };
+        let register = match diesel::insert_into(posts::table)
+            .values((
                 posts::id.eq(Uuid::new_v4()),
                 posts::photo.eq(post.photo),
                 posts::description.eq(post.description),
                 posts::author.eq(post.author),
                 posts::created_at.eq(dsl::now),
             ))           
-            .get_result::<Post>(connection)?;
-
-            let dest_file = format!("{}/{}.png", post.author, post.photo);
-            let src_file = format!("./{}.png", post.photo);
-            put_file_s3(src_file, dest_file)?;
-
-           Ok(register)
+            .get_result::<Post>(connection) {
+                Ok(post)=>post,
+                Err(e)=> {
+                    fs::remove_file(src_file.clone()).expect("le fichier n'existe pas");
+                    return Err(error::ErrorInternalServerError(e.to_string()))
+                },
+            };
+        Ok(register)
     }
 }
