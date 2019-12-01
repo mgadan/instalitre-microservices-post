@@ -143,7 +143,10 @@ pub fn put_file_s3(src_file: String, dest_file: String) -> Result<(), PostError>
         match client
             .put_object(put_request)
             .sync() {
-                Ok(_)=> Ok(()),
+                Ok(_)=> {
+                    fs::remove_file(src_file.clone()).expect("fichier n'existe pas");
+                    Ok(())
+                },
                 Err(e)=> {
                     fs::remove_file(src_file.clone()).expect("fichier n'existe pas");
                     return Err(PostError::S3PutError(e))

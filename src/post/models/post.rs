@@ -31,30 +31,29 @@ pub struct UpdatePost {
 }
 
 impl Post {
-    pub fn get(_id: &Uuid, connection: &PgConnection) -> Result<Post, PostError> {
+    pub fn get(id_post: &Uuid, connection: &PgConnection) -> Result<Post, PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
-        use crate::schema::posts::dsl::*;
         use crate::schema;
 
         let post = schema::posts::table
-                    .find(id)
-                    .first(connection)?;
+            .find(id_post)
+            .first(connection)?;
 
         Ok(post)
     }
 
-    pub fn delete(_id: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
+    pub fn delete(id_post: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
         use diesel::QueryDsl;
         use diesel::RunQueryDsl;
         use crate::schema;
         use crate::schema::posts::dsl::*;
 
         let post: Post = schema::posts::table
-            .find(id)
+            .find(id_post)
             .first(connection)?;   
 
-        diesel::delete(posts.find(id))
+        diesel::delete(posts.find(id_post))
             .execute(connection)?;
 
         delete_file_s3(format!("{}/{}.png", post.author, post.photo))?;
@@ -90,7 +89,7 @@ impl Post {
 pub struct PostList(pub Vec<Post>);
 
 impl PostList {
-    pub fn get_all(param_author: &Uuid, connection: &PgConnection) -> Self{
+    pub fn get_all(param_author: &Uuid, connection: &PgConnection) -> Result<Self, PostError> {
         use crate::schema::posts::dsl::*;
         use diesel::ExpressionMethods;
         use diesel::QueryDsl;
@@ -100,10 +99,9 @@ impl PostList {
             posts
                 .filter(author.eq(param_author))
                 .order_by(created_at.desc())
-                .load::<Post>(connection)
-                .expect("Error loading post");
+                .load::<Post>(connection)?;
 
-        PostList(result)
+        Ok(PostList(result))
     }
 
     pub fn delete_all(param_author: &Uuid, connection: &PgConnection) -> Result<(), PostError> {
@@ -150,39 +148,35 @@ impl NewPost {
         let post = self.clone();
         let dest_file = format!("{}/{}.png", post.author, post.photo);
         let src_file = format!("./{}.png", post.photo);
-                match self.validate() {
-                    Ok(_)=>(),
-                    Err(e)=> {
-                        fs::remove_file(src_file.clone()).expect("le fichier n'existe pas");
-                        return Err(error::ErrorInternalServerError(e.to_string()))
-                     },               
-                 };
-                println!("{}", post.photo);
-     
-                let register = match diesel::insert_into(posts::table)
-                .values((
-                     posts::id.eq(Uuid::new_v4()),
-                     posts::photo.eq(post.photo),
-                     posts::description.eq(post.description),
-                     posts::author.eq(post.author),
-                     posts::created_at.eq(dsl::now),
-                 ))           
-                 .get_result::<Post>(connection) {
-                     Ok(post)=>post,
-                     Err(e)=> {
-                        fs::remove_file(src_file.clone()).expect("le fichier n'existe pas");
-                        return Err(error::ErrorInternalServerError(e.to_string()))
-                     },
-                 };
-     
-
-                 match put_file_s3(src_file, dest_file) {
-                     Ok(_)=>(),
-                     Err(e)=> {
-                        return Err(error::ErrorInternalServerError(e.to_string()))
-                     },
-                };
-
-                 Ok(register)
+        match self.validate() {
+            Ok(_)=>(),
+            Err(e)=> {
+                fs::remove_file(src_file.clone()).expect("le fichier n'existe pas");
+                return Err(error::ErrorInternalServerError(e.to_string()))
+             },               
+         };
+        println!("{}", post.photo);
+        match put_file_s3(src_file.clone(), dest_file) {
+            Ok(_)=>(),
+            Err(e)=> {
+               return Err(error::ErrorInternalServerError(e.to_string()))
+            },
+        };
+        let register = match diesel::insert_into(posts::table)
+            .values((
+                posts::id.eq(Uuid::new_v4()),
+                posts::photo.eq(post.photo),
+                posts::description.eq(post.description),
+                posts::author.eq(post.author),
+                posts::created_at.eq(dsl::now),
+            ))           
+            .get_result::<Post>(connection) {
+                Ok(post)=>post,
+                Err(e)=> {
+                    fs::remove_file(src_file.clone()).expect("le fichier n'existe pas");
+                    return Err(error::ErrorInternalServerError(e.to_string()))
+                },
+            };
+        Ok(register)
     }
 }

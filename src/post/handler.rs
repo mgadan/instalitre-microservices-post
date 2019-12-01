@@ -44,7 +44,9 @@ fn pg_pool_handler(pool: web::Data<PgPool>) -> Result<PgPooledConnection, HttpRe
 
  pub fn get_all(_req: HttpRequest, author: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
      let pg_pool = pg_pool_handler(pool)?;
-     Ok(HttpResponse::Ok().json(PostList::get_all(&author, &pg_pool)))
+     PostList::get_all(&author, &pg_pool)
+        .map(|res| HttpResponse::Ok().json(res))
+        .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
  }
 
  pub fn delete_all(id: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
