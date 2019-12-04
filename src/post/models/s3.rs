@@ -20,48 +20,13 @@ use form_data::{ FilenameGenerator, Value};
 use regex::Regex;
 use crate::post::models::post::NewPost; 
 
-pub fn save_file(id: &Uuid, field: Field) -> impl Future<Item = u16, Error = Error> {
-    let validator_images = format!("{:?}", field.headers().get("content-type"));
-    println!("{:?}", field.headers());
-    if validator_images.contains("image") != true {
-        return Either::A(err(error::ErrorInternalServerError(std::io::Error::new(std::io::ErrorKind::Other, "Votre fichier n'est pas une images"))));
-    }
-    let file_path_string = (format!("./{}.png", id)).to_owned();
-
-    let file = match fs::File::create(file_path_string) {
-            Ok(file) => file,
-            Err(e) => return Either::A(err(error::ErrorInternalServerError(e))),
-        };
-        Either::B(
-            field
-                .fold((file, 0i64), move |(mut file, mut acc), bytes| {
-                    web::block(move || {
-                        file.write_all(bytes.as_ref()).map_err(|e| {
-                            println!("file.write_all failed: {:?}", e);
-                            MultipartError::Payload(error::PayloadError::Io(e))
-                        })?;
-                        acc += bytes.len() as i64;
-                        Ok((file, acc))
-                    })
-                    .map_err(|e: error::BlockingError<MultipartError>| {
-                        match e {
-                            error::BlockingError::Error(e) => e,
-                            error::BlockingError::Canceled => MultipartError::Incomplete,
-                        }
-                    })
-                })
-                .map(| _ | 200)
-                .map_err(|e| error::ErrorInternalServerError(e)),
-        )
-}
-
 fn get_region() -> Result<rusoto_signature::Region, PostError> {
-    let region_name = match env::var("region"){
+    let region_name = match env::var("REGION"){
         Ok(name)=>name,
         Err(e)=> return Err(PostError::InvalidEnv(e)),  
       };
 
-    let region_endpoint = match env::var("endpoint"){
+    let region_endpoint = match env::var("ENDPOINT"){
         Ok(name)=>name,
         Err(e)=> return Err(PostError::InvalidEnv(e)),  
       };
@@ -74,12 +39,12 @@ fn get_region() -> Result<rusoto_signature::Region, PostError> {
 }
 
 fn get_credentials() -> Result<rusoto_credential::AwsCredentials, PostError> {
-    let access_key = match env::var("accesskey"){
+    let access_key = match env::var("ACCESSKEY"){
         Ok(value)=>value,
         Err(e)=> return Err(PostError::InvalidEnv(e)),  
       };
 
-    let secret_key = match env::var("secretkey"){
+    let secret_key = match env::var("SECRETKEY"){
         Ok(value)=>value,
         Err(e)=> return Err(PostError::InvalidEnv(e)),  
       };
@@ -122,7 +87,7 @@ pub fn put_file_s3(src_file: String, dest_file: String) -> Result<(), PostError>
         };
 
         //initialise aws
-        let name_bucket = match env::var("nameBucket"){
+        let name_bucket = match env::var("NAME_BUCKET"){
             Ok(name)=>name,
             Err(e)=> return Err(PostError::InvalidEnv(e)),  
           };
@@ -160,7 +125,7 @@ pub fn get_file_s3(file_path: String) -> Result<String, PostError> {
             Err(e)=>return Err(e),
         };
 
-        let name_bucket = match env::var("nameBucket"){
+        let name_bucket = match env::var("NAME_BUCKET"){
             Ok(name)=>name,
             Err(e)=> return Err(PostError::InvalidEnv(e)),  
           };
@@ -191,7 +156,7 @@ pub fn delete_file_s3(file_path: String) -> Result<(), PostError> {
         Err(e)=>return Err(e),
     };
 
-    let name_bucket = match env::var("nameBucket"){
+    let name_bucket = match env::var("NAME_BUCKET"){
         Ok(name)=>name,
         Err(e)=> return Err(PostError::InvalidEnv(e)),  
       };
