@@ -22,7 +22,7 @@ fn main() {
     env_logger::init();
 
     dotenv().ok();
-    let port = env::var("port").expect("port must be set");
+    let port = env::var("PORT").expect("port must be set");
 
     let form = Form::new()
         .field("author", Field::text())
