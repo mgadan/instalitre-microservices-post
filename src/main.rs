@@ -22,7 +22,7 @@ fn main() {
     env_logger::init();
 
     dotenv().ok();
-    let port = env::var("port").expect("port must be set");
+    let port = env::var("PORT").expect("port must be set");
 
     let form = Form::new()
         .field("author", Field::text())
@@ -43,7 +43,10 @@ fn main() {
             .wrap(middleware::Logger::default())
             .data(establish_connection())
             .data(form.clone())
-            .configure(post::router::config)
+            .service(
+                web::scope("/post")
+                    .configure(post::router::config)
+            )
     })  
         .bind(format!("0.0.0.0:{}", port))
         .expect("Can not bind to port 8000")
