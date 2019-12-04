@@ -1,0 +1,17 @@
+installer rust et cargo
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+ecrire un ficher .env
+    DATABASE_URL_TEST=postgres://user:password@address/name_database
+    accesskey= scaleway > api token > generate new token (access key)
+    secretkey= scaleway > api token > generate new token (your ornisation id)
+    nameBucket= scaleway > object storage > create bucket > bucket name
+    region=fr-par
+    endpoint=https://s3.fr-par.scw.cloud
+
+    port
+
+Par default c'est localhost
+
+run api
+    cargo run

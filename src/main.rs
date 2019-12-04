@@ -43,7 +43,10 @@ fn main() {
             .wrap(middleware::Logger::default())
             .data(establish_connection())
             .data(form.clone())
-            .configure(post::router::config)
+            .service(
+                web::scope("/post")
+                    .configure(post::router::config)
+            )
     })  
         .bind(format!("0.0.0.0:{}", port))
         .expect("Can not bind to port 8000")
