@@ -226,22 +226,22 @@ pub fn form_data_value_to_new_post(uploaded_content: Value) -> NewPost {
     let mut description_post = format!("");
 
     match uploaded_content {
-        Value::Map(mut hashmap) => {
-            match hashmap.remove("author") {
+        Value::Map(hashmap) => {
+            match hashmap.get("author") {
                 Some(value) => match value {
                     Value::Text(text) => author_post = text.to_uppercase(),
                     _ => (),
                 }
                 None => (),
             }
-            match hashmap.remove("description") {
+            match hashmap.get("description") {
                 Some(value) => match value {
-                    Value::Text(text) => description_post = text,
+                    Value::Text(text) => description_post = format!("{}", text),
                     _ => (),
                 }
                 None => (),
             }
-            match hashmap.remove("files") {
+            match hashmap.get("files") {
                 Some(value) => match value {
                     Value::File(_, path_buf) => photo_post = format!("{:?}", path_buf),
                     _ => (),
@@ -251,7 +251,6 @@ pub fn form_data_value_to_new_post(uploaded_content: Value) -> NewPost {
         }
         _ => (),
     }
-    println!("photo: {}", photo_post);
     let regex = Regex::new(r"(?m)[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}").unwrap();    
     let caps = regex.captures(&photo_post[..]).unwrap();
     let new_post = NewPost {

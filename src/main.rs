@@ -10,7 +10,8 @@ pub mod db_connection;
 pub mod errors;
 
 use db_connection::establish_connection;
-use actix_web::{middleware, App, HttpServer};
+use actix_web::{middleware, http::header, App, HttpServer};
+use actix_cors::Cors;
 use crate::post::models::s3::Gen;
 use form_data::{Field, Form};
 use std::env;
@@ -30,6 +31,15 @@ fn main() {
     
     HttpServer::new(move || {
         App::new()
+            .wrap(
+                Cors::new()
+                    .allowed_origin(&env::var("ALLOWED_ORIGIN").expect("not exist variable ALLOWED_ORIGIN")[..])
+                    .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
+                    .allowed_headers(vec![header::AUTHORIZATION,
+                                        header::CONTENT_TYPE,
+                                        header::ACCEPT])
+                    .max_age(3600)
+            )
             .wrap(middleware::Logger::default())
             .data(establish_connection())
             .data(form.clone())
