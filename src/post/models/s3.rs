@@ -1,24 +1,9 @@
-use uuid::Uuid;
 use crate::errors::PostError;
-use actix_multipart::{Field, MultipartError};
-use actix_web::{error, web, Error};
-use futures::{
-    future::{err, Either}, 
-    Future, Stream
-};
-use std::fs;
-use std::io::{
-    Write,
-    prelude::*
-};
-use std::fs::File;
+use std::io::prelude::*;
 use std::env;
 use rusoto_core::credential::{AwsCredentials, StaticProvider};
 use rusoto_s3::{DeleteObjectRequest, GetObjectRequest, PutObjectRequest, S3Client, S3,};
-use std::path::PathBuf;
-use form_data::{ FilenameGenerator, Value};
-use regex::Regex;
-use crate::post::models::post::NewPost; 
+
 
 fn get_region() -> Result<rusoto_signature::Region, PostError> {
     let region_name = match env::var("REGION"){
@@ -77,14 +62,8 @@ fn get_client() -> Result<rusoto_s3::S3Client, PostError> {
     Ok(client)
 }
 
-pub fn put_file_s3(src_file: String, dest_file: String) -> Result<(), PostError> {
-        //read data
-        let file= File::open(&src_file[..]).unwrap();
-        let data: Result<Vec<_>, _> = file.bytes().collect();
-        let data = match data {
-            Ok(data)=> data,
-            Err(e) => return Err(PostError::InvalidReadFile(e)),
-        };
+pub fn put_file_s3(data: Vec<u8>, dest_file: String) -> Result<(), PostError> {
+
 
         //initialise aws
         let name_bucket = match env::var("NAME_BUCKET"){
@@ -108,12 +87,8 @@ pub fn put_file_s3(src_file: String, dest_file: String) -> Result<(), PostError>
         match client
             .put_object(put_request)
             .sync() {
-                Ok(_)=> {
-                    fs::remove_file(src_file.clone()).expect("fichier n'existe pas");
-                    Ok(())
-                },
+                Ok(_)=>Ok(()),
                 Err(e)=> {
-                    fs::remove_file(src_file.clone()).expect("fichier n'existe pas");
                     return Err(PostError::S3PutError(e))
                 }
             }
@@ -172,56 +147,4 @@ pub fn delete_file_s3(file_path: String) -> Result<(), PostError> {
             Ok(_) => Ok(()),
             Err(e) => return Err(PostError::S3DeleteError(e))
         }
-}
-#[derive(Debug)]
-pub struct Gen;
- 
- impl FilenameGenerator for Gen {
-     fn next_filename(&self, _: &mime::Mime) -> Option<PathBuf> {
-         let mut p = PathBuf::new();
-         p.push(format!("{}.png", Uuid::new_v4()));
-         Some(p)
-     }
-}
-
-pub fn form_data_value_to_new_post(uploaded_content: Value) -> NewPost {
-
-    let mut photo_post = format!("");
-    let mut author_post = format!("");
-    let mut description_post = format!("");
-
-    match uploaded_content {
-        Value::Map(hashmap) => {
-            match hashmap.get("author") {
-                Some(value) => match value {
-                    Value::Text(text) => author_post = text.to_uppercase(),
-                    _ => (),
-                }
-                None => (),
-            }
-            match hashmap.get("description") {
-                Some(value) => match value {
-                    Value::Text(text) => description_post = format!("{}", text),
-                    _ => (),
-                }
-                None => (),
-            }
-            match hashmap.get("files") {
-                Some(value) => match value {
-                    Value::File(_, path_buf) => photo_post = format!("{:?}", path_buf),
-                    _ => (),
-                }
-                None => (),
-            }
-        }
-        _ => (),
-    }
-    let regex = Regex::new(r"(?m)[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}").unwrap();    
-    let caps = regex.captures(&photo_post[..]).unwrap();
-    let new_post = NewPost {
-        photo: Uuid::parse_str(&caps.get(0).unwrap().as_str()[..]).unwrap(),
-        description: description_post,
-        author: Uuid::parse_str(&author_post[..]).unwrap(),
-    };
-    return new_post;
 }

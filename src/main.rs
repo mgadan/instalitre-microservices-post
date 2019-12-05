@@ -12,8 +12,6 @@ pub mod errors;
 use db_connection::establish_connection;
 use actix_web::{web, middleware, http::header, App, HttpServer};
 use actix_cors::Cors;
-use crate::post::models::s3::Gen;
-use form_data::{Field, Form};
 use std::env;
 use dotenv::dotenv;
 
@@ -24,11 +22,7 @@ fn main() {
     dotenv().ok();
     let port = env::var("PORT").expect("port must be set");
 
-    let form = Form::new()
-        .field("author", Field::text())
-        .field("description", Field::text())
-        .field("files", Field::file(Gen));
-    
+
     HttpServer::new(move || {
         App::new()
             .wrap(
@@ -42,7 +36,6 @@ fn main() {
             )
             .wrap(middleware::Logger::default())
             .data(establish_connection())
-            .data(form.clone())
             .service(
                 web::scope("/post")
                     .configure(post::router::config)
