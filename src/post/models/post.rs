@@ -5,13 +5,7 @@ use crate::schema::posts;
 use diesel::PgConnection;
 use crate::errors::PostError;
 use crate::post::models::s3::delete_file_s3;
-use crate::post::models::s3::put_file_s3;
-use futures::{
-    future::{self, Either},
-    Future,
-};
-use actix_web::{error, web, Error};
-use std::fs;
+use actix_web::{error, Error};
 
 #[derive(Debug, Validate, Serialize, Deserialize, Queryable, Insertable, PartialEq, Clone)]
 #[table_name="posts"]
@@ -146,22 +140,13 @@ impl NewPost {
         use diesel::dsl;
         use diesel::prelude::*;
         let post = self.clone();
-        let dest_file = format!("{}/{}.png", post.author, post.photo);
-        let src_file = format!("./{}.png", post.photo);
         match self.validate() {
             Ok(_)=>(),
             Err(e)=> {
-                fs::remove_file(src_file.clone()).expect("le fichier n'existe pas");
                 return Err(error::ErrorInternalServerError(e.to_string()))
              },               
          };
-        println!("{}", post.photo);
-        match put_file_s3(src_file.clone(), dest_file) {
-            Ok(_)=>(),
-            Err(e)=> {
-               return Err(error::ErrorInternalServerError(e.to_string()))
-            },
-        };
+
         let register = match diesel::insert_into(posts::table)
             .values((
                 posts::id.eq(Uuid::new_v4()),
@@ -173,7 +158,6 @@ impl NewPost {
             .get_result::<Post>(connection) {
                 Ok(post)=>post,
                 Err(e)=> {
-                    fs::remove_file(src_file.clone()).expect("le fichier n'existe pas");
                     return Err(error::ErrorInternalServerError(e.to_string()))
                 },
             };

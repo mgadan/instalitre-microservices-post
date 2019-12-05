@@ -4,7 +4,7 @@ use crate::post::handler;
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/")
-            .route(web::post().to(handler::upload))
+            .route(web::post().to_async(handler::upload))
     );
 
     cfg.service(
@@ -21,7 +21,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     );
 
     cfg.service(
-        web::resource("/file/{author}/{post}")
+        web::resource("/image/{author}/{post}")
             .route(web::get().to(handler::get_file))
     );
 }

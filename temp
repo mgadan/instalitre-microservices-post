@@ -1,0 +1,39 @@
+curl -X POST \
+    -d '{ "clientId": "instalitre-web-service-post" }' \
+    -H "Content-Type:application/json" \
+    -H "Authorization: bearer " \
+    http://auth.instalitre.social/auth/realms/instalitre/clients-registrations/default
+
+curl -X POST \
+    -d '{ "clientId": "api" }' \
+    -H "Content-Type:application/json" \
+    -H "Authorization: bearer eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICIzcDFybFp5T01kSVZsOFlLRjRESEhpOEJ1QUpVUnhVekNqZDF6Mkh4WFRvIn0.eyJqdGkiOiI4ZWU1MDQ3OC1iZWI4LTRmNDEtOGJlMi03OWQyMzBmMWZkMWQiLCJleHAiOjE1NzU0OTQwMjEsIm5iZiI6MCwiaWF0IjoxNTc1NDkzNzIxLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwODAvYXV0aC9yZWFsbXMvaW5zdGFsaXRyZSIsImF1ZCI6WyJhcGkiLCJhY2NvdW50Il0sInN1YiI6IjEzYWU2YmM5LWViMDQtNGJkOC05MTc5LTQxNjQwNjA2Nzg5OSIsInR5cCI6IkJlYXJlciIsImF6cCI6IndlYiIsImF1dGhfdGltZSI6MCwic2Vzc2lvbl9zdGF0ZSI6IjE5Y2IwYzc3LTk1YjktNGU2Ni04NDQ5LTJmMmFjNDFiN2NkNSIsImFjciI6IjEiLCJyZWFsbV9hY2Nlc3MiOnsicm9sZXMiOlsidGVzdCIsIm9mZmxpbmVfYWNjZXNzIiwidW1hX2F1dGhvcml6YXRpb24iXX0sInJlc291cmNlX2FjY2VzcyI6eyJhcGkiOnsicm9sZXMiOlsid2ViLW9yaWdpbnMiLCJ0ZXN0Il19LCJhY2NvdW50Ijp7InJvbGVzIjpbIm1hbmFnZS1hY2NvdW50IiwibWFuYWdlLWFjY291bnQtbGlua3MiLCJ2aWV3LXByb2ZpbGUiXX19LCJzY29wZSI6InByb2ZpbGUgZW1haWwiLCJlbWFpbF92ZXJpZmllZCI6ZmFsc2UsInByZWZlcnJlZF91c2VybmFtZSI6InRlc3QiLCJlbWFpbCI6InRlc3RAZ21haWwuY29tIn0.IwftrewEqZ_cSC2ICgs6bf4ksKpsBrctqF7BWXPdSjFBm_iETSnftxUQ4AOFXSKpUTmsCZHdsN2ON6RfCmChHCvLGfrxa7cnE-Hz_hHWbrLw77NqcDKHWmQVvWhQ325T1ApQhcjtSKMMdoMHhOQD41pRTZlKWzYXFcV1FOUtwEz3wPkbL54RMOSz1fMIIwh4PBUXdz5G4bO25lV0MsPY7vawz4eHXK7bN8y4SkgDcfeJi0Jv5GBNmx7A2KYJcRF_Th8Mcqh1CvoLJ-esLdd8iabpcJ3qUcEe4qfjZF5hQtmX-WP8YXgQ06rePOo3OoNBKFLoe2c49Vio1UtZc-7_Uw" \
+    http://localhost:8080/auth/realms/instalitre/clients-registrations/default
+
+curl -X POST \                   
+    -H "Content-Type: application/x-www-form-urlencoded" \   
+    -d 'username=test&password=test44&grant_type=password' \
+    -d 'client_id=web' \
+    -d 'client_secret=8fe2be27-821f-4d50-a9a3-2ca6c2f1327d' \
+    "http://localhost:8080/auth/realms/instalitre/protocol/openid-connect/token"
+
+
+access_token=$(curl \
+-d "client_id=web" \
+-d client_secret=8fe2be27-821f-4d50-a9a3-2ca6c2f1327d \
+-d "username=test" \
+-d "password=test44!" \
+-d "grant_type=password" \
+"http://localhost:8080/auth/realms/instalitre/protocol/openid-connect/token" | jq -r
+'.access_token')
+
+
+access_token=curl \
+-d "client_id=api" -d "client_secret=8fe2be27-821f-4d50-a9a3-2ca6c2f1327d" \
+-d "username=test" -d "password=test44" \
+-d "grant_type=password" \
+-d "scope=bearer" \
+http://localhost:8080/auth/realms/instalitre/protocol/openid-connect/token | jq -r '.access_token'
+curl –header « Authorization: Bearer $access_token » \
+http://localhost:8080/auth/realms/instalitre/protocol/openid-connect/userinfo | jq .
+

@@ -1,6 +1,5 @@
 extern crate diesel;
 use actix_web::{HttpRequest, HttpResponse, error};
-use actix_web::web::Data;
 use crate::post::models::post::*; 
 use crate::post::models::s3::*; 
 use actix_web::web;
@@ -8,11 +7,9 @@ use uuid::Uuid;
 use crate::db_connection::{ PgPool, PgPooledConnection };
 use actix_multipart::Multipart;
 use futures::{Future, Stream};
-use form_data::{handle_multipart, Form};
-use futures::{
-    future::{self, Either},
-};
-use std::fs;
+use futures::future;
+use actix_multipart::{Field, MultipartError};
+use actix_web::{Error};
 
 // macro_rules! function_handler {
 //     ( $handler_name:ident ($($arg:ident:$typ:ty),*) -> $body:expr) => {
@@ -70,6 +67,7 @@ pub fn delete(id: web::Path<Uuid>, pool: web::Data<PgPool>) -> Result<HttpRespon
         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
 }
 
+
 pub fn put(id: web::Path<Uuid>, new_post: web::Json<UpdatePost>, pool: web::Data<PgPool>) -> Result<HttpResponse, HttpResponse> {
     let pg_pool = pg_pool_handler(pool)?;
     Post::put(&id, &new_post, &pg_pool)
@@ -77,26 +75,60 @@ pub fn put(id: web::Path<Uuid>, new_post: web::Json<UpdatePost>, pool: web::Data
         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
 }
 
-pub fn upload((mp, state, pool): (Multipart, Data<Form>, web::Data<PgPool>)) -> Box<dyn Future<Item = HttpResponse, Error = HttpResponse>> {
-    let pg_pool = match pg_pool_handler(pool){
-        Ok(db_connection)=>db_connection,
-        Err(e)=> return Box::new(future::err(e)),
-    };
-    Box::new(
-        handle_multipart(mp, state.get_ref().clone())
-        .map(|uploaded_content| form_data_value_to_new_post(uploaded_content))
-        .map(move |new_post| {
-            match new_post.post(&pg_pool) {
-                Ok(_)=> HttpResponse::Created().finish(),
-                Err(e)=> HttpResponse::InternalServerError().json(e.to_string())
-            }
-        })
-        .map_err(|e| HttpResponse::InternalServerError().json(e.to_string())),
-    )
+
+pub fn upload(multipart: Multipart, pool: web::Data<PgPool>) -> impl Future<Item = HttpResponse, Error = HttpResponse> {
+    multipart
+            .map_err(error::ErrorInternalServerError)
+            .map(|field| get_field_filedata(field).into_stream())
+            .flatten()
+            .collect()
+            .map(move |res| {
+                let file_bytes = res.first().unwrap().to_vec();
+                let author =  String::from_utf8(res[1].to_vec()).unwrap();
+                let description =  String::from_utf8(res[2].to_vec()).unwrap();
+                let photo = Uuid::new_v4();
+                match put_file_s3(file_bytes, format!("{}/{}.png", author, photo)) {
+                    Ok(_)=>(),
+                    Err(e)=> return HttpResponse::InternalServerError().json(e.to_string()),
+                };
+                let pg_pool = match pg_pool_handler(pool){
+                    Ok(db_connection)=>db_connection,
+                    Err(e)=> return e,
+                };
+                println!("{}", author);
+                println!("{}", photo);
+                println!("{}", description);
+
+                let new_post = NewPost{
+                    author: Uuid::parse_str(&author[..]).unwrap(),
+                    description: description,
+                    photo: photo
+                };
+
+                match new_post.post(&pg_pool) {
+                    Ok(_)=> HttpResponse::Created().finish(),
+                    Err(e)=> HttpResponse::InternalServerError().json(e.to_string())
+                }    
+            })
+            .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
 }
 
 pub fn get_file(uuid: web::Path<(Uuid, Uuid)>) -> Result<HttpResponse, HttpResponse> {
     get_file_s3(format!("{}/{}.png", uuid.0, uuid.1))
         .map(|res| HttpResponse::Ok().body(res))
         .map_err(|e| HttpResponse::InternalServerError().json(e.to_string()))
+}
+
+pub fn get_field_filedata(field: Field) -> impl Future<Item = Vec<u8>, Error = Error>
+{
+
+        field.fold(Vec::new(), move |mut acc : Vec<u8>, bytes| {
+            acc.append(bytes.to_vec().as_mut());
+            let rt: Result<Vec<u8>, MultipartError> = Ok(acc);
+            future::result(rt)
+        })
+        .map_err(|e| {
+            println!("bytes receive failed, {:?}", e);
+            error::ErrorInternalServerError(e)
+        })
 }
