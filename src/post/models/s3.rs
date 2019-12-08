@@ -3,6 +3,7 @@ use std::io::prelude::*;
 use std::env;
 use rusoto_core::credential::{AwsCredentials, StaticProvider};
 use rusoto_s3::{DeleteObjectRequest, GetObjectRequest, PutObjectRequest, S3Client, S3,};
+use futures::Async;
 
 
 fn get_region() -> Result<rusoto_signature::Region, PostError> {
@@ -94,7 +95,7 @@ pub fn put_file_s3(data: Vec<u8>, dest_file: String) -> Result<(), PostError> {
             }
 }
     
-pub fn get_file_s3(file_path: String) -> Result<String, PostError> {
+pub fn get_file_s3(file_path: String) -> Result<Vec<u8>, PostError> {
         let client = match get_client() {
             Ok(value)=>value,
             Err(e)=>return Err(e),
@@ -118,7 +119,7 @@ pub fn get_file_s3(file_path: String) -> Result<String, PostError> {
                     let mut stream = res.body.unwrap().into_blocking_read();
                     let mut body = Vec::new();
                     stream.read_to_end(&mut body).unwrap();
-                    Ok(base64::encode(&body))
+                    Ok(body)
                 },
                 Err(e) => return Err(PostError::S3GetError(e))
             }
