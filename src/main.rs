@@ -31,7 +31,8 @@ fn main() {
                     .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
                     .allowed_headers(vec![header::AUTHORIZATION,
                                         header::CONTENT_TYPE,
-                                        header::ACCEPT])
+                                        header::ACCEPT,
+                                        header::ACCESS_CONTROL_ALLOW_ORIGIN])
                     .max_age(3600)
             )
             .wrap(middleware::Logger::default())
