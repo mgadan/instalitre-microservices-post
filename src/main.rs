@@ -29,7 +29,11 @@ fn main() {
                 Cors::new()
                     .allowed_origin(&env::var("ALLOWED_ORIGIN").expect("not exist variable ALLOWED_ORIGIN")[..])
                     .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
-                    .allowed_header("*")
+                    .allowed_headers(vec![header::AUTHORIZATION,
+                                        header::CONTENT_TYPE,
+                                        header::ACCEPT,
+                                        header::ACCESS_CONTROL_ALLOW_ORIGIN,
+                                        header::X_CONTENT_TYPE_OPTIONS])
                     .max_age(3600)
             )
             .wrap(middleware::Logger::default())
