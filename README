@@ -1,7 +1,7 @@
-installer rust et cargo
+install rust
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-ecrire un ficher .env
+.env
     DATABASE_URL_TEST=postgres://user:password@address/name_database
     accesskey= scaleway > api token > generate new token (access key)
     secretkey= scaleway > api token > generate new token (your ornisation id)
