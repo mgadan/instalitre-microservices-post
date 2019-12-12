@@ -16,7 +16,7 @@
 ## run api
     cargo run
     
-## Routes
+## Routes
     
     /post/ 
         POST: add post
