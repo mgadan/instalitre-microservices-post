@@ -2,7 +2,8 @@
 
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-.env
+## .env
+    
     DATABASE_URL_TEST=postgres://user:password@address/name_database
     accesskey= scaleway > api token > generate new token (access key)
     secretkey= scaleway > api token > generate new token (your ornisation id)
@@ -12,10 +13,11 @@
     port=numero de port
     adresse est localhost
 
-run api
+## run api
     cargo run
     
-Routes
+## Routes
+    
     /post/ 
         POST: add post
     
@@ -31,5 +33,5 @@ Routes
     /image/{author}/{post}
         GET: return image in base 64 with uuid author and uuid photo
        
-POSTMAN requete:
+## POSTMAN requete:
     https://www.getpostman.com/collections/c0e2007560ad56852e67
